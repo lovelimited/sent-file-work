@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   getSubmissions, 
@@ -7,6 +7,7 @@ import {
   getActivityLogs, 
   getSettings 
 } from '../../lib/storage';
+import { syncDataToGoogleSheets, getLastSheetsSyncInfo } from '../../lib/googleSheetsSync';
 import { TeacherSubmissionTracker } from '../../components/common/TeacherSubmissionTracker';
 import { Link } from 'react-router-dom';
 import { 
@@ -21,7 +22,10 @@ import {
   ArrowRight,
   ShieldCheck,
   ClipboardCheck,
-  Lock
+  Lock,
+  ExternalLink,
+  RefreshCw,
+  CheckCircle2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -33,33 +37,49 @@ export const AdminDashboard: React.FC = () => {
   const libraryFiles = getLibraryFiles();
   const logs = getActivityLogs().slice(0, 5);
 
-  const teachers = users.filter(u => u.role === 'teacher');
-  const evaluatedCount = submissions.filter(s => s.status === 'passed' || s.status === 'revision_required' || s.status === 'rejected').length;
-  const evaluationRate = submissions.length > 0 ? Math.round((evaluatedCount / submissions.length) * 100) : 0;
+  const [syncInfo, setSyncInfo] = useState(() => getLastSheetsSyncInfo());
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const handleExportSheets = () => {
+  useEffect(() => {
+    const handleSynced = () => {
+      setSyncInfo(getLastSheetsSyncInfo());
+    };
+    window.addEventListener('sent_work_sheets_synced', handleSynced);
+    return () => window.removeEventListener('sent_work_sheets_synced', handleSynced);
+  }, []);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    const res = await syncDataToGoogleSheets('ADMIN_MANUAL_TRIGGER');
+    setIsSyncing(false);
+    setSyncInfo(getLastSheetsSyncInfo());
     Swal.fire({
-      title: 'ส่งออกรายงานสรุปไปยัง Google Sheets',
+      title: 'ซิงค์ข้อมูล Google Sheets สำเร็จ!',
       html: `
         <div class="text-left text-xs space-y-2 text-slate-600">
-          <p>ระบบทำการเชื่อมโยงข้อมูลสรุปการส่งงานของครูทุกคนไปยัง Google Sheets</p>
+          <p class="text-emerald-700 font-semibold">✓ ข้อมูลการส่งงานและผลการตรวจเชื่อมโยงกับ Google Sheets เรียบร้อยแล้ว</p>
+          <p>จำนวนข้อมูลที่ประมวลผล: <b>${res.rowCount} รายการ</b></p>
           <div class="p-2.5 bg-slate-100 rounded-lg font-mono text-[11px] text-slate-800 break-all">
             Sheet ID: ${settings.googleSheetReportId}
           </div>
-          <p class="text-emerald-600 font-medium">✓ จัดรูปแบบรายงานตามกลุ่มสาระการเรียนรู้เรียบร้อยแล้ว</p>
+          <p class="text-slate-500 text-[11px]">ระบบทำงานแบบ Auto-Sync ตลอดเวลา ทุกครั้งที่มีครูส่งงานหรือแอดมินตรวจรับรอง ข้อมูลจะอัปเดตลง Google Sheets ทันทีอัตโนมัติ</p>
         </div>
       `,
       icon: 'success',
       confirmButtonText: 'เปิดดูเอกสาร Google Sheets',
       showCancelButton: true,
-      cancelButtonText: 'ปิดหน้าต่าง',
-      confirmButtonColor: '#16a34a',
-    }).then((res) => {
-      if (res.isConfirmed) {
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#16a34a'
+    }).then(r => {
+      if (r.isConfirmed) {
         window.open(`https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`, '_blank');
       }
     });
   };
+
+  const teachers = users.filter(u => u.role === 'teacher');
+  const evaluatedCount = submissions.filter(s => s.status === 'passed' || s.status === 'revision_required' || s.status === 'rejected').length;
+  const evaluationRate = submissions.length > 0 ? Math.round((evaluatedCount / submissions.length) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -72,24 +92,53 @@ export const AdminDashboard: React.FC = () => {
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> แดชบอร์ดผู้บริหาร & ฝ่ายตรวจงานวิชาการ
             </span>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-              {settings.schoolName}
+              {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'}
             </h2>
             <p className="mt-2 text-sm text-slate-300 leading-relaxed">
               ภาพรวมการส่งผลงานของครูทุกคน (แผนการสอน, วิจัย, สื่อ, รายงานโครงการ ฯลฯ) พร้อมระบบตรวจงานและคลังเอกสาร
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleExportSheets}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-md hover:bg-emerald-500 transition-all hover:scale-[1.02]"
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Live Auto-Sync Indicator Badge */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs font-semibold backdrop-blur-md shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span>ซิงค์ Google Sheets อัตโนมัติ</span>
+              <span className="text-[10px] text-emerald-200/90 font-mono bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                {syncInfo.formattedTime}
+              </span>
+            </div>
+
+            {/* Direct Open Google Sheets Link */}
+            <a
+              href={`https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] cursor-pointer"
+              title="เปิดดูเอกสาร Google Sheets ที่ระบบซิงค์ให้อัตโนมัติ"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              ส่งออกสรุป Google Sheets
+              <span>เปิดดู Google Sheets</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+            </a>
+
+            {/* Force Sync button */}
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium border border-white/10 transition-colors cursor-pointer"
+              title="กดเพื่อสั่งให้ระบบซิงค์ข้อมูลลง Google Sheets ทันที"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+              <span className="hidden sm:inline">{isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ทันที'}</span>
             </button>
+
             <Link
               to="/admin/settings"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium border border-white/10 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium border border-white/10 transition-colors"
             >
               ตั้งค่าระบบ
             </Link>
@@ -195,19 +244,30 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
                 <FileSpreadsheet className="w-4 h-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-800">Google Sheets Sync</p>
-                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                    Connected
-                  </span>
+                  <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    Google Sheets Auto-Sync
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  </p>
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-emerald-700 font-bold hover:underline flex items-center gap-0.5"
+                  >
+                    เปิดชีต <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
                 </div>
-                <p className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
-                  ID: {settings.googleSheetReportId}
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  ซิงค์อัตโนมัติทันทีที่มีการส่งงานหรือตรวจรับรอง • ล่าสุด: <span className="font-semibold text-emerald-800">{syncInfo.formattedTime}</span>
+                </p>
+                <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
+                  Sheet ID: {settings.googleSheetReportId}
                 </p>
               </div>
             </div>

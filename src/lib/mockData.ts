@@ -15,7 +15,7 @@ import {
 
 export const initialSettings: SystemSettings = {
   systemName: "ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารสำหรับผู้บริหาร",
-  schoolName: "โรงเรียนสาธิตพัฒนาวิทยาการ",
+  schoolName: "โรงเรียนสารสาสน์วิเทศราชพฤกษ์",
   logoUrl: "/logo.jpg",
   academicYear: "2569",
   semester: "1",

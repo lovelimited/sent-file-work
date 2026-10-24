@@ -70,6 +70,14 @@ function setItem<T>(key: string, value: T): void {
   }
 }
 
+// Notification helper for real-time background sync
+function notifyDataChanged(action: string) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action } }));
+  }
+}
+
+
 // System Settings
 export function getSettings(): SystemSettings {
   return getItem<SystemSettings>(STORAGE_KEYS.SETTINGS, initialSettings);
@@ -80,6 +88,7 @@ export function saveSettings(settings: SystemSettings, actor?: User): SystemSett
   if (actor) {
     logActivity('UPDATE_SETTINGS', 'SystemSettings', 'main', actor, { systemName: settings.systemName });
   }
+  notifyDataChanged('SETTINGS_SAVED');
   return settings;
 }
 
@@ -230,6 +239,8 @@ export function createSubmission(
     isLate
   });
 
+  notifyDataChanged('SUBMISSION_CREATED');
+
   return newSubmission;
 }
 
@@ -305,6 +316,8 @@ export function addSubmissionVersion(
     versionNumber: newVersionNumber,
     filesCount: files.length,
   });
+
+  notifyDataChanged('VERSION_SUBMITTED');
 
   return submissions[subIndex];
 }
@@ -386,6 +399,8 @@ export function submitAdminReview(
     decision,
   });
 
+  notifyDataChanged('REVIEW_SUBMITTED');
+
   return newReview;
 }
 
@@ -426,6 +441,7 @@ export function saveSubmissionTopic(item: SubmissionTopic, actor: User): Submiss
   }
   setItem(STORAGE_KEYS.TOPICS, list);
   logActivity('SAVE_SUBMISSION_TOPIC', 'SubmissionTopic', item.id, actor, { title: item.title, dueDate: item.dueDate });
+  notifyDataChanged('TOPIC_SAVED');
   return item;
 }
 
@@ -434,6 +450,7 @@ export function deleteSubmissionTopic(id: string, actor: User): boolean {
   list = list.filter(i => i.id !== id);
   setItem(STORAGE_KEYS.TOPICS, list);
   logActivity('DELETE_SUBMISSION_TOPIC', 'SubmissionTopic', id, actor);
+  notifyDataChanged('TOPIC_DELETED');
   return true;
 }
 
@@ -555,11 +572,25 @@ export function logActivity(
 
 // Current User Session
 export function getStoredCurrentUser(): User | null {
-  return getItem<User | null>(STORAGE_KEYS.CURRENT_USER, initialUsers[1]); // Default to teacher (ครูสมศรี)
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (!raw || raw === 'null' || raw === 'undefined') return null;
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredCurrentUser(user: User | null): void {
-  setItem(STORAGE_KEYS.CURRENT_USER, user);
+  try {
+    if (!user) {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    } else {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+    }
+  } catch (err) {
+    console.error('Error saving current user to localStorage', err);
+  }
 }
 
 // Dashboard Tracking Matrix Helper (ใครส่งอะไร / ยังไม่ได้ส่ง)

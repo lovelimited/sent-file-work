@@ -30,7 +30,8 @@ import {
   Check,
   X,
   AlertTriangle,
-  ListTodo
+  ListTodo,
+  FileSpreadsheet
 } from 'lucide-react';
 import { DocumentViewerModal } from './DocumentViewerModal';
 
@@ -129,6 +130,18 @@ export const TeacherSubmissionTracker: React.FC = () => {
           <div className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs">
             รวม {overallPercentage}%
           </div>
+          <a
+            href="https://docs.google.com/spreadsheets/d/1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+            title="ข้อมูลในตารางนี้จะซิงค์ลง Google Sheets อัตโนมัติทุกครั้งที่มีการอัปเดต"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">ซิงค์ Sheets อัตโนมัติ</span>
+            <span className="sm:hidden">Sheets</span>
+          </a>
         </div>
       </div>
 

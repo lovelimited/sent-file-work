@@ -10,7 +10,12 @@ import {
   logActivity 
 } from '../lib/storage';
 import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail
+} from 'firebase/auth';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -18,6 +23,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (identifier: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   switchRole: (newRole: UserRole) => void;
   updateCurrentUserProfile: (updates: Partial<User>) => void;
@@ -34,16 +40,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  const login = async (identifier: string, _pass: string): Promise<{ success: boolean; error?: string }> => {
-    let user = getUserByEmail(identifier) || getUserByUsername(identifier);
+  const login = async (identifier: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const trimmedId = identifier.trim();
+    let user = getUserByEmail(trimmedId) || getUserByUsername(trimmedId);
+
+    // Validate password for known local demo accounts
+    if (user) {
+      const isAdminAccount = user.role === 'admin' || user.email === 'drive.limited@gmail.com' || user.username === 'admin';
+      const validAdminPass = pass === 'krittapot001' || pass === 'admin123' || pass === 'password123';
+      const validTeacherPass = pass === 'password123' || pass === '123456' || pass === 'krittapot001';
+
+      if (isAdminAccount && !validAdminPass) {
+        return { success: false, error: 'รหัสผ่านแอดมินไม่ถูกต้อง (กรุณาใช้รหัสผ่าน krittapot001)' };
+      }
+      if (!isAdminAccount && !validTeacherPass && pass.length < 4) {
+        return { success: false, error: 'รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นคือ password123)' };
+      }
+    }
 
     if (!user) {
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, identifier, _pass);
+        const userCredential = await signInWithEmailAndPassword(auth, trimmedId, pass);
         const fbUser = userCredential.user;
         user = {
           uid: fbUser.uid,
-          email: fbUser.email || identifier,
+          email: fbUser.email || trimmedId,
           emailVerified: fbUser.emailVerified,
           displayName: fbUser.displayName || 'ครูผู้ใช้งานระบบ',
           firstName: fbUser.displayName?.split(' ')[0] || 'ครู',
@@ -57,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           authProvider: 'password',
         };
       } catch (err: any) {
-        return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง' };
+        return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
       }
     }
 
@@ -69,6 +90,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStoredCurrentUser(user);
     logActivity('LOGIN', 'User', user.uid, user, { method: 'credential' });
     return { success: true };
+  };
+
+  const resetPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return {
+        success: true,
+        message: `ระบบได้จัดส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยัง ${email} เรียบร้อยแล้ว กรุณาเปิดตรวจสอบกล่องข้อความในอีเมลของคุณ`
+      };
+    } catch (err: any) {
+      return {
+        success: true,
+        message: `หากบัญชีอีเมล ${email} มีอยู่ในระบบ ระบบจะจัดส่งลิงก์รีเซ็ตรหัสผ่านให้ทันที`
+      };
+    }
   };
 
   const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
@@ -151,6 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         login,
         loginWithGoogle,
+        resetPassword,
         logout,
         switchRole,
         updateCurrentUserProfile,
