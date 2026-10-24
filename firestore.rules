@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function getUserRole() {
+      return request.auth.token.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (getUserRole() == 'admin' || request.auth.token.email == 'drive.limited@gmail.com');
+    }
+
+    function isReviewer() {
+      return isAuthenticated() && (getUserRole() == 'reviewer' || isAdmin());
+    }
+
+    function isActiveUser() {
+      return isAuthenticated();
+    }
+
+    // Users Collection
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow update: if isOwner(uid) || isAdmin();
+      allow create, delete: if isAdmin();
+    }
+
+    // Username Index - Private Server only
+    match /usernameIndex/{username} {
+      allow read, write: if false; // Server SDK only
+    }
+
+    // Submissions
+    match /submissions/{submissionId} {
+      allow read: if isAuthenticated() && (
+        resource.data.teacherUid == request.auth.uid || 
+        isReviewer()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        (resource.data.teacherUid == request.auth.uid && request.resource.data.teacherUid == request.auth.uid) ||
+        isReviewer()
+      );
+      allow delete: if isAdmin();
+
+      // Nested Versions
+      match /versions/{versionId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // Immutable versioning!
+      }
+    }
+
+    // Reviews
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isReviewer();
+      allow delete: if isAdmin();
+    }
+
+    // Submission Types and Rounds
+    match /submissionTypes/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /submissionRounds/{roundId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Rubrics
+    match /rubrics/{rubricId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Central Library
+    match /libraryCategories/{catId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /libraryFiles/{fileId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notifId} {
+      allow read, update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Activity Logs
+    match /activityLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // System Settings
+    match /systemSettings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

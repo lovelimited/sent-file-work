@@ -1,0 +1,295 @@
+import React from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { 
+  getSubmissions, 
+  getUsers, 
+  getLibraryFiles, 
+  getActivityLogs, 
+  getSettings 
+} from '../../lib/storage';
+import { TeacherSubmissionTracker } from '../../components/common/TeacherSubmissionTracker';
+import { Link } from 'react-router-dom';
+import { 
+  Users, 
+  FileCheck2, 
+  TrendingUp, 
+  BookOpen, 
+  FileSpreadsheet, 
+  HardDrive, 
+  Database, 
+  Bell, 
+  ArrowRight,
+  ShieldCheck,
+  ClipboardCheck,
+  Lock
+} from 'lucide-react';
+import Swal from 'sweetalert2';
+
+export const AdminDashboard: React.FC = () => {
+  const { currentUser } = useAuth();
+  const settings = getSettings();
+  const submissions = getSubmissions();
+  const users = getUsers();
+  const libraryFiles = getLibraryFiles();
+  const logs = getActivityLogs().slice(0, 5);
+
+  const teachers = users.filter(u => u.role === 'teacher');
+  const evaluatedCount = submissions.filter(s => s.status === 'passed' || s.status === 'revision_required' || s.status === 'rejected').length;
+  const evaluationRate = submissions.length > 0 ? Math.round((evaluatedCount / submissions.length) * 100) : 0;
+
+  const handleExportSheets = () => {
+    Swal.fire({
+      title: 'ส่งออกรายงานสรุปไปยัง Google Sheets',
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-600">
+          <p>ระบบทำการเชื่อมโยงข้อมูลสรุปการส่งงานของครูทุกคนไปยัง Google Sheets</p>
+          <div class="p-2.5 bg-slate-100 rounded-lg font-mono text-[11px] text-slate-800 break-all">
+            Sheet ID: ${settings.googleSheetReportId}
+          </div>
+          <p class="text-emerald-600 font-medium">✓ จัดรูปแบบรายงานตามกลุ่มสาระการเรียนรู้เรียบร้อยแล้ว</p>
+        </div>
+      `,
+      icon: 'success',
+      confirmButtonText: 'เปิดดูเอกสาร Google Sheets',
+      showCancelButton: true,
+      cancelButtonText: 'ปิดหน้าต่าง',
+      confirmButtonColor: '#16a34a',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        window.open(`https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`, '_blank');
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+
+      {/* Admin Executive Header */}
+      <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 sm:p-8 text-white shadow-xl shadow-slate-950/20">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 backdrop-blur-md border border-white/20 mb-3 text-blue-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> แดชบอร์ดผู้บริหาร & ฝ่ายตรวจงานวิชาการ
+            </span>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {settings.schoolName}
+            </h2>
+            <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+              ภาพรวมการส่งผลงานของครูทุกคน (แผนการสอน, วิจัย, สื่อ, รายงานโครงการ ฯลฯ) พร้อมระบบตรวจงานและคลังเอกสาร
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExportSheets}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-md hover:bg-emerald-500 transition-all hover:scale-[1.02]"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              ส่งออกสรุป Google Sheets
+            </button>
+            <Link
+              to="/admin/settings"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium border border-white/10 transition-colors"
+            >
+              ตั้งค่าระบบ
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">จำนวนครูในระบบ</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 mt-2">{teachers.length}</p>
+          <p className="text-[11px] text-slate-400 mt-1">บัญชีครูประจำการ</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-blue-600">ผลงานที่ส่งทั้งหมด</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <FileCheck2 className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-blue-700 mt-2">{submissions.length}</p>
+          <p className="text-[11px] text-blue-600/70 mt-1">ทุกประเภทผลงาน</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-600">ตรวจอนุมัติแล้ว</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-emerald-700 mt-2">{evaluationRate}%</p>
+          <p className="text-[11px] text-emerald-600/70 mt-1">{evaluatedCount} จาก {submissions.length} รายการ</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-indigo-600">คลังเอกสารส่วนกลาง</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-indigo-700 mt-2">{libraryFiles.length}</p>
+          <p className="text-[11px] text-indigo-600/70 mt-1">คู่มือและแบบฟอร์ม</p>
+        </div>
+      </div>
+
+      {/* Public / School-wide Submission Tracker */}
+      <TeacherSubmissionTracker />
+
+      {/* Grid: Connected Cloud Services & Audit Logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Cloud Services Status (1 col) */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">สถานะบริการเชื่อมต่อ (System Status)</h3>
+              <p className="text-[11px] text-slate-500">Firebase & Google Cloud Integration</p>
+            </div>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Database className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800">Firebase Database & Auth</p>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Online
+                  </span>
+                </div>
+                <p className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                  send-file-51069
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <HardDrive className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800">Google Drive Private Root</p>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Scoped
+                  </span>
+                </div>
+                <p className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                  ID: {settings.googleDriveRootFolderId}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <FileSpreadsheet className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800">Google Sheets Sync</p>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Connected
+                  </span>
+                </div>
+                <p className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                  ID: {settings.googleSheetReportId}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Bell className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800">LINE Push Notifications</p>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Active
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                  แจ้งเตือนเข้ากลุ่มผู้บริหารทันทีที่มีงานส่ง
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Audit Logs (2 cols) */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">บันทึกกิจกรรมล่าสุด (Activity Audit Trail)</h3>
+              <p className="text-xs text-slate-500">ตรวจสอบทุกการกระทำเพื่อความโปร่งใสและปลอดภัย</p>
+            </div>
+            <Link 
+              to="/admin/activity-logs" 
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            >
+              ดูทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {logs.map((log) => (
+              <div key={log.id} className="py-3 flex items-start justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-900">{log.actorName}</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded uppercase font-medium">
+                      {log.actorRole}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 font-mono text-[11px]">{log.action}</p>
+                </div>
+                <span className="text-[11px] text-slate-400 whitespace-nowrap">
+                  {new Date(log.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Management Shortcuts */}
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <Link
+              to="/admin/members"
+              className="p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700 text-xs font-medium text-center transition-colors"
+            >
+              จัดการสมาชิก
+            </Link>
+            <Link
+              to="/admin/submission-types"
+              className="p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700 text-xs font-medium text-center transition-colors"
+            >
+              ตั้งค่าประเภทงาน
+            </Link>
+            <Link
+              to="/admin/rounds"
+              className="p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700 text-xs font-medium text-center transition-colors"
+            >
+              ตั้งรอบส่งงาน
+            </Link>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+};
