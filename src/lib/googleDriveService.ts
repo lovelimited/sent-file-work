@@ -54,7 +54,7 @@ export async function uploadFilesToGoogleDrive(params: {
 }): Promise<DriveUploadResult> {
   const settings = getSettings();
   const webhookUrl = settings.googleAppsScriptWebhookUrl || GAS_WEBHOOK_URL;
-  const folderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM';
+  const folderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
 
   if (!webhookUrl || !webhookUrl.includes('/exec')) {
     return {
@@ -153,7 +153,7 @@ export async function initTopicFoldersInGoogleDrive(topics: Array<{ title: strin
 }> {
   const settings = getSettings();
   const webhookUrl = settings.googleAppsScriptWebhookUrl || GAS_WEBHOOK_URL;
-  const folderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM';
+  const folderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
 
   try {
     const payload = {

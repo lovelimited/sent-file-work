@@ -90,6 +90,10 @@ export function getSettings(): SystemSettings {
     current.googleSheetReportId = '1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU';
     changed = true;
   }
+  if (!current.googleDriveRootFolderId || current.googleDriveRootFolderId !== '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd') {
+    current.googleDriveRootFolderId = '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
+    changed = true;
+  }
   if (changed) {
     setItem(STORAGE_KEYS.SETTINGS, current);
   }
@@ -229,7 +233,24 @@ export function getSubmissionById(id: string): Submission | undefined {
 
 export function getVersionsBySubmissionId(submissionId: string): SubmissionVersion[] {
   const allVersions = getItem<Record<string, SubmissionVersion[]>>(STORAGE_KEYS.VERSIONS, initialVersions);
-  return allVersions[submissionId] || [];
+  const versions = allVersions[submissionId] || [];
+  versions.forEach(v => {
+    v.files?.forEach(f => {
+      if (!f.driveUrl || f.driveUrl === '#') {
+        if (f.driveFileId && !f.driveFileId.includes('_p') && f.driveFileId.length > 15) {
+          f.driveUrl = `https://drive.google.com/file/d/${f.driveFileId}/view`;
+        } else {
+          f.driveUrl = `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`;
+        }
+      }
+      if (!f.downloadUrl || f.downloadUrl === '#') {
+        if (f.driveFileId && !f.driveFileId.includes('_p') && f.driveFileId.length > 15) {
+          f.downloadUrl = `https://drive.google.com/uc?export=download&id=${f.driveFileId}`;
+        }
+      }
+    });
+  });
+  return versions;
 }
 
 export function createSubmission(
@@ -882,6 +903,8 @@ export interface TopicFolderFileItem {
   mimeType: string;
   previewUrl?: string;
   downloadUrl?: string;
+  driveFileId?: string;
+  driveUrl?: string;
   folderName: string;
   folderPath: string;
   subTaskId?: string;
@@ -928,6 +951,8 @@ export function getSubmissionFilesGroupedByTopic(): TopicFolderItem[] {
             mimeType: f.mimeType,
             previewUrl: f.previewUrl,
             downloadUrl: f.downloadUrl,
+            driveFileId: f.driveFileId,
+            driveUrl: f.driveUrl || (f.driveFileId ? `https://drive.google.com/file/d/${f.driveFileId}/view` : `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`),
             folderName: f.folderName || topic.title,
             folderPath: f.folderPath || `Google Drive / ${topic.title} /`,
             subTaskId: f.subTaskId,

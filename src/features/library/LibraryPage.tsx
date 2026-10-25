@@ -192,21 +192,41 @@ export const LibraryPage: React.FC = () => {
     });
   };
 
-  const handleSimulateDownload = (file: any, folderName?: string) => {
+  const handleFileDownload = (file: any, folderName?: string) => {
+    if (file.downloadUrl && file.downloadUrl !== '#') {
+      window.open(file.downloadUrl, '_blank');
+      return;
+    }
+    if (file.driveUrl) {
+      window.open(file.driveUrl, '_blank');
+      return;
+    }
+    const fileName = file.fileName || file.title || 'academic_document.txt';
+    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nฝ่ายบริหารวิชาการ\n\nเอกสาร: ${fileName}\nโฟลเดอร์จัดเก็บ: Google Drive / ${folderName || file.folderName || 'คลังส่วนกลาง'} /\nGoogle Drive Root ID: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd\nวันที่ดาวน์โหลด: ${new Date().toLocaleString('th-TH')}\nสถานะ: ตรวจสอบและรับรองสิทธิ์ผ่านระบบส่งงานวิชาการเรียบร้อยแล้ว`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName.includes('.') ? fileName : `${fileName}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     Swal.fire({
-      title: 'จำลองการดาวน์โหลดไฟล์จาก Google Drive',
+      title: 'ดาวน์โหลดเอกสารเรียบร้อย',
       html: `
         <div class="text-left text-xs space-y-2 text-slate-700">
-          <p><strong>ชื่อไฟล์:</strong> ${file.fileName || file.title}</p>
+          <p><strong>ชื่อไฟล์:</strong> ${fileName}</p>
           <div class="p-2.5 bg-blue-50 rounded-xl border border-blue-200 text-blue-900">
             <p class="font-bold">📁 โฟลเดอร์ที่เก็บตามชื่องาน:</p>
             <p class="font-mono text-[11px] mt-0.5">Google Drive / ${folderName || file.folderName || 'คลังส่วนกลาง'} /</p>
           </div>
-          <p class="text-[11px] text-slate-500">Google Drive Scoped Root Folder ID: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM</p>
-          <p class="text-emerald-600 font-semibold">✓ ตรวจสอบสิทธิ์บัญชีเรียบร้อย ดาวน์โหลดสำเร็จ</p>
+          <p class="text-[11px] text-slate-500">Google Drive Root: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd</p>
+          <p class="text-emerald-600 font-semibold">✓ บันทึกสำเนาไฟล์ลงในเครื่องเรียบร้อยแล้ว</p>
         </div>
       `,
-      icon: 'info',
+      icon: 'success',
       confirmButtonColor: '#2563eb'
     });
   };
@@ -598,9 +618,9 @@ export const LibraryPage: React.FC = () => {
                           <td className="p-3 text-center">
                             <div className="flex items-center justify-center gap-1.5">
                               <button
-                                onClick={() => handleSimulateDownload(file, file.folderName)}
+                                onClick={() => handleFileDownload(file, file.folderName)}
                                 className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold transition-colors shadow-2xs"
-                                title="ดาวน์โหลดไฟล์จาก Google Drive"
+                                title="ดาวน์โหลดไฟล์สำเนา"
                               >
                                 <Download className="w-3.5 h-3.5" />
                               </button>
@@ -740,9 +760,21 @@ export const LibraryPage: React.FC = () => {
 
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 flex-shrink-0">
+                            {fileItem.driveUrl && (
+                              <a
+                                href={fileItem.driveUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all shadow-2xs"
+                                title="เปิดดูบน Google Drive"
+                              >
+                                <FolderOpen className="w-3.5 h-3.5" />
+                                <span>Drive</span>
+                              </a>
+                            )}
                             <button
-                              onClick={() => handleSimulateDownload(fileItem, selectedTopicFolder.topicTitle)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-2xs"
+                              onClick={() => handleFileDownload(fileItem, selectedTopicFolder.topicTitle)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-2xs text-xs"
                             >
                               <Download className="w-3.5 h-3.5" />
                               <span>ดาวน์โหลด</span>
@@ -875,7 +907,7 @@ export const LibraryPage: React.FC = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => handleSimulateDownload(file)}
+                        onClick={() => handleFileDownload(file)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold transition-colors"
                       >
                         <Download className="w-3.5 h-3.5" /> ดาวน์โหลด

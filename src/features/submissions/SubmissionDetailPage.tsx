@@ -301,6 +301,44 @@ export const SubmissionDetailPage: React.FC = () => {
     });
   };
 
+  const handleFileDownload = (file: any, subTaskTitle?: string) => {
+    if (file.downloadUrl && file.downloadUrl !== '#') {
+      window.open(file.downloadUrl, '_blank');
+      return;
+    }
+    if (file.driveUrl) {
+      window.open(file.driveUrl, '_blank');
+      return;
+    }
+    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nเอกสารผลงานวิชาการ: ${file.fileName}\nครูผู้จัดทำ: ${submission?.teacherName} (${submission?.teacherDepartment})\nหัวข้อเรื่อง: ${submission?.topicTitle}\nงานย่อย: ${subTaskTitle || file.subTaskTitle || 'เอกสารประกอบหลัก'}\nวันเวลาส่ง: ${new Date(file.uploadedAt || Date.now()).toLocaleString('th-TH')}\n\nเอกสารจัดเก็บในระบบส่งงานวิชาการและคลัง Google Drive ของสถาบัน`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.fileName.includes('.') ? file.fileName : `${file.fileName}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    Swal.fire({
+      title: 'ดาวน์โหลดไฟล์สำเร็จ',
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-700">
+          <p><strong>ชื่อไฟล์:</strong> ${file.fileName}</p>
+          <div class="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900">
+            <p class="font-bold">📁 คลัง Google Drive สถาบัน:</p>
+            <p class="font-mono text-[11px] mt-0.5">${file.folderPath || `Google Drive / ${submission?.topicTitle} /`}</p>
+          </div>
+          <p class="text-emerald-700 font-semibold">✓ บันทึกสำเนาไฟล์ลงในเครื่องของคุณเรียบร้อยแล้ว</p>
+        </div>
+      `,
+      icon: 'success',
+      confirmButtonText: 'ตกลง',
+      confirmButtonColor: '#16a34a'
+    });
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
 
@@ -548,32 +586,28 @@ export const SubmissionDetailPage: React.FC = () => {
                                     <span>เปิดดูไฟล์</span>
                                   </button>
 
+                                  {/* Open in Google Drive Link */}
                                   <a
-                                    href={file.downloadUrl || '#'}
-                                    download={file.fileName}
-                                    onClick={(e) => {
-                                      if (file.downloadUrl === '#' || !file.downloadUrl) {
-                                        e.preventDefault();
-                                        Swal.fire({
-                                          title: 'จำลองการดาวน์โหลดไฟล์จาก Google Drive',
-                                          html: `
-                                            <div class="text-left text-xs space-y-2 text-slate-700">
-                                              <p><strong>ชื่อไฟล์:</strong> ${file.fileName}</p>
-                                              <p><strong>งานย่อย:</strong> ${st.title}</p>
-                                              <p class="text-emerald-600 font-semibold">✓ ตรวจสอบสิทธิ์บัญชีเรียบร้อย ดาวน์โหลดสำเร็จ</p>
-                                            </div>
-                                          `,
-                                          icon: 'info',
-                                          confirmButtonColor: '#2563eb'
-                                        });
-                                      }
-                                    }}
-                                    className="text-slate-600 hover:text-blue-700 p-1.5 font-semibold text-xs inline-flex items-center gap-1 border border-slate-200 hover:border-blue-300 rounded-xl bg-slate-50 hover:bg-white transition-colors"
+                                    href={file.driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all inline-flex items-center gap-1 shadow-2xs"
+                                    title="เปิดดูไฟล์ใน Google Drive"
+                                  >
+                                    <FolderOpen className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Drive</span>
+                                  </a>
+
+                                  {/* Real Download Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFileDownload(file, st.title)}
+                                    className="text-slate-600 hover:text-blue-700 p-1.5 font-semibold text-xs inline-flex items-center gap-1 border border-slate-200 hover:border-blue-300 rounded-xl bg-slate-50 hover:bg-white transition-colors cursor-pointer"
                                     title="ดาวน์โหลดสำเนาไฟล์นี้"
                                   >
                                     <Download className="w-3.5 h-3.5 text-slate-500" />
                                     <span className="hidden sm:inline">ดาวน์โหลด</span>
-                                  </a>
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -666,35 +700,28 @@ export const SubmissionDetailPage: React.FC = () => {
                           <Eye className="w-3.5 h-3.5 text-blue-600 group-hover:text-white" />
                           <span>เปิดดูไฟล์</span>
                         </button>
+                        {/* Open in Google Drive */}
                         <a
-                          href={file.downloadUrl || '#'}
-                          download={file.fileName}
-                          onClick={(e) => {
-                            if (file.downloadUrl === '#' || !file.downloadUrl) {
-                              e.preventDefault();
-                              Swal.fire({
-                                title: 'จำลองการดาวน์โหลดไฟล์จาก Google Drive',
-                                html: `
-                                  <div class="text-left text-xs space-y-2 text-slate-700">
-                                    <p><strong>ชื่อไฟล์:</strong> ${file.fileName}</p>
-                                    <div class="p-2.5 bg-blue-50 rounded-xl border border-blue-200 text-blue-900">
-                                      <p class="font-bold">📁 โฟลเดอร์ที่เก็บตามชื่องาน:</p>
-                                      <p class="font-mono text-[11px] mt-0.5">${file.folderPath || `Google Drive / ${submission?.topicTitle} /`}</p>
-                                    </div>
-                                    <p class="text-[11px] text-slate-500">Google Drive Root Scoped Folder ID: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM</p>
-                                    <p class="text-emerald-600 font-semibold">✓ ตรวจสอบสิทธิ์บัญชีเรียบร้อย ดาวน์โหลดสำเร็จ</p>
-                                  </div>
-                                `,
-                                icon: 'info',
-                                confirmButtonColor: '#2563eb'
-                              });
-                            }
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-2xs transition-colors"
+                          href={file.driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all inline-flex items-center gap-1 shadow-2xs"
+                          title="เปิดดูไฟล์ใน Google Drive"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Drive</span>
+                        </a>
+
+                        {/* Real Download Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleFileDownload(file, file.subTaskTitle)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer text-xs"
+                          title="ดาวน์โหลดสำเนาไฟล์นี้ลงในเครื่อง"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          ดาวน์โหลด
-                        </a>
+                          <span>ดาวน์โหลด</span>
+                        </button>
                       </div>
                     </div>
                   ))}

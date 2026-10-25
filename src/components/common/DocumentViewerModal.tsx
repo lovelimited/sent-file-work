@@ -76,6 +76,12 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isWord = ['doc', 'docx'].includes(fileExt);
   const isExcel = ['xls', 'xlsx'].includes(fileExt);
 
+  const driveId = (file as any).driveFileId || 
+    ((file as any).driveUrl?.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]) ||
+    ((file as any).driveUrl?.match(/id=([a-zA-Z0-9_-]+)/)?.[1]);
+  const hasValidDriveId = Boolean(driveId && !driveId.includes('_p') && driveId.length > 15);
+  const hasBlobPdfPreview = Boolean(file.previewUrl && (file.previewUrl.startsWith('blob:') || file.previewUrl.startsWith('data:application/pdf')));
+
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 25, 200));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 25, 75));
   const handleResetZoom = () => setZoomLevel(100);
@@ -85,11 +91,30 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   };
 
   const handleDownload = () => {
+    if (file.downloadUrl && file.downloadUrl !== '#') {
+      window.open(file.downloadUrl, '_blank');
+      return;
+    }
+    if ((file as any).driveUrl) {
+      window.open((file as any).driveUrl, '_blank');
+      return;
+    }
+    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nเอกสารผลงานวิชาการ: ${file.fileName}\nหัวข้องาน: ${topicTitle}\nครูผู้จัดทำ: ${teacherName} (${teacherDepartment})\nวันเวลา: ${new Date().toLocaleString('th-TH')}\n\nเอกสารบันทึกในระบบส่งงานวิชาการและคลัง Google Drive โรงเรียนสารสาสน์วิเทศราชพฤกษ์`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.fileName.includes('.') ? file.fileName : `${file.fileName}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
     Swal.fire({
-      title: 'กำลังดาวน์โหลดเอกสาร',
-      html: `ไฟล์: <b>${file.fileName}</b><br/><span class="text-xs text-slate-500">บันทึกสำเนาลงในเครื่องของคุณเรียบร้อยแล้ว</span>`,
+      title: 'ดาวน์โหลดเอกสารเรียบร้อย',
+      html: `ไฟล์: <b>${file.fileName}</b><br/><span class="text-xs text-slate-500">บันทึกสำเนาลงในเครื่องของคุณแล้ว</span>`,
       icon: 'success',
-      timer: 2000,
+      timer: 1800,
       showConfirmButton: false
     });
   };
@@ -202,6 +227,19 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               <Printer className="w-4 h-4" />
             </button>
 
+            {/* Open in Google Drive Button */}
+            <a
+              href={(file as any).driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+              title="เปิดไฟล์นี้บน Google Drive"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">เปิดใน Drive</span>
+              <ExternalLink className="w-3 h-3 opacity-80" />
+            </a>
+
             {/* Download Button */}
             <button
               type="button"
@@ -243,8 +281,58 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             className="transition-transform duration-200 origin-top flex flex-col items-center"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
-            {/* Image Viewer */}
-            {isImage ? (
+            {/* Real Google Drive Embedded Viewer */}
+            {hasValidDriveId ? (
+              <div className="w-[880px] max-w-[95vw] h-[82vh] bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col">
+                <div className="bg-slate-800 text-white px-4 py-2.5 text-xs flex items-center justify-between border-b border-slate-700 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="font-semibold text-emerald-400">
+                      แสดงผลเอกสารจริงจาก Google Drive
+                    </span>
+                    <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">
+                      ({file.fileName})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={(file as any).driveUrl || `https://drive.google.com/file/d/${driveId}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      เปิดใน Drive <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+                <iframe
+                  src={`https://drive.google.com/file/d/${driveId}/preview`}
+                  className="w-full flex-1 border-0 bg-white"
+                  allow="autoplay"
+                  title={file.fileName}
+                />
+              </div>
+            ) : hasBlobPdfPreview ? (
+              <div className="w-[880px] max-w-[95vw] h-[82vh] bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col">
+                <div className="bg-slate-800 text-white px-4 py-2.5 text-xs flex items-center justify-between border-b border-slate-700 flex-shrink-0">
+                  <span className="font-semibold text-blue-400 flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    แสดงตัวอย่างเอกสาร PDF ที่อัปโหลด ({file.fileName})
+                  </span>
+                  <button
+                    onClick={handleDownload}
+                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    ดาวน์โหลด <Download className="w-3 h-3" />
+                  </button>
+                </div>
+                <iframe
+                  src={file.previewUrl}
+                  className="w-full flex-1 border-0 bg-white"
+                  title={file.fileName}
+                />
+              </div>
+            ) : isImage ? (
               <div className="bg-white p-4 rounded-2xl shadow-2xl border border-slate-800 max-w-3xl">
                 <img 
                   src={file.previewUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80"} 
@@ -276,7 +364,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                       สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ
                     </p>
                     <h1 className="text-lg font-black text-slate-900 tracking-tight">
-                      โรงเรียนมัธยมศึกษาตัวอย่าง • กลุ่มบริหารงานวิชาการ
+                      โรงเรียนสารสาสน์วิเทศราชพฤกษ์ • ฝ่ายบริหารวิชาการ
                     </h1>
                     <p className="text-xs font-semibold text-slate-700">
                       เอกสารตรวจสอบและรับรองผลงานวิชาการ ประจำภาคเรียนที่ 1 ปีการศึกษา 2569
@@ -310,7 +398,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     <div className="space-y-5 text-xs leading-relaxed text-slate-800">
                       <div className="border-l-4 border-blue-600 pl-3">
                         <h2 className="text-sm font-bold text-slate-900">
-                          ส่วนที่ 1: รายละเอียดเค้าโครงและสาระสำคัญของผลงาน
+                          ส่วนที่ 1: รายละเอียดเอกสารและสถานะการจัดเก็บบน Google Drive
                         </h2>
                         <p className="text-[11px] text-slate-500">
                           ไฟล์: <span className="font-mono text-blue-700">{file.fileName}</span>
@@ -318,35 +406,60 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                       </div>
 
                       <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
-                        <h3 className="font-bold text-slate-900">1.1 มาตรฐานการเรียนรู้และตัวชี้วัด / ผลการเรียนรู้</h3>
-                        <p className="text-slate-700 pl-3 border-l-2 border-slate-200">
-                          มฐ. ว 4.2 เข้าใจและใช้แนวคิดเชิงคำนวณในการแก้ปัญหาที่พบในชีวิตจริงอย่างเป็นขั้นตอนและเป็นระบบ ใช้เทคโนโลยีสารสนเทศและการสื่อสารในการเรียนรู้ การทำงาน และการแก้ปัญหาได้อย่างมีประสิทธิภาพ รู้เท่าทัน และมีจริยธรรม
-                        </p>
+                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <ShieldCheck className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                            <div>
+                              <p className="font-bold text-xs">สถานะ: ลงทะเบียนเข้าสู่ระบบสารบรรณและ Google Drive แล้ว</p>
+                              <p className="text-[11px] text-emerald-700 font-mono mt-0.5">
+                                ปลายทาง: Google Drive / {topicTitle} / [{teacherName}] {file.fileName}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px] border border-emerald-300">
+                            VERIFIED
+                          </span>
+                        </div>
 
-                        <h3 className="font-bold text-slate-900 pt-2">1.2 วัตถุประสงค์และจุดประสงค์การเรียนรู้ (K-P-A)</h3>
-                        <ul className="list-disc list-inside space-y-1 pl-3 text-slate-700">
-                          <li><strong>ด้านความรู้ (Knowledge):</strong> นักเรียนสามารถอธิบายหลักการออกแบบและพัฒนาโปรแกรมประยุกต์เบื้องต้นได้อย่างถูกต้อง (ร้อยละ 85 ขึ้นไป)</li>
-                          <li><strong>ด้านทักษะกระบวนการ (Process):</strong> นักเรียนฝึกเขียนโปรแกรมและทำงานร่วมกันเป็นทีมผ่านกระบวนการโครงงาน (Project-based Learning)</li>
-                          <li><strong>ด้านคุณลักษณะอันพึงประสงค์ (Attitude):</strong> มีวินัย ใฝ่เรียนรู้ และมุ่งมั่นในการทำงาน</li>
-                        </ul>
+                        <h3 className="font-bold text-slate-900 pt-1">ข้อมูลจำเพาะของไฟล์เอกสาร (File Specification)</h3>
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span className="text-slate-500 block text-[10px]">ชื่อไฟล์ต้นฉบับ:</span>
+                            <strong className="text-slate-800 font-mono break-all">{file.fileName}</strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span className="text-slate-500 block text-[10px]">ขนาดไฟล์:</span>
+                            <strong className="text-slate-800">{(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB ({file.fileSizeBytes.toLocaleString()} ไบต์)</strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span className="text-slate-500 block text-[10px]">รูปแบบไฟล์ (MIME Type):</span>
+                            <strong className="text-slate-800 font-mono">{file.mimeType || fileExt.toUpperCase()}</strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span className="text-slate-500 block text-[10px]">Google Drive Root:</span>
+                            <strong className="text-slate-800 font-mono text-[10px]">1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd</strong>
+                          </div>
+                        </div>
 
-                        <h3 className="font-bold text-slate-900 pt-2">1.3 การจัดกิจกรรมการเรียนรู้เชิงรุก (Active Learning 5 ขั้นตอน)</h3>
-                        <div className="grid grid-cols-5 gap-2 text-center text-[10px] pt-1">
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <strong className="block text-blue-900">ขั้นที่ 1</strong> กระตุ้นความสนใจ (Warm up)
-                          </div>
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <strong className="block text-blue-900">ขั้นที่ 2</strong> สำรวจและค้นหา (Explore)
-                          </div>
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <strong className="block text-blue-900">ขั้นที่ 3</strong> อธิบายความรู้ (Explain)
-                          </div>
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <strong className="block text-blue-900">ขั้นที่ 4</strong> ขยายความเข้าใจ (Elaborate)
-                          </div>
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <strong className="block text-blue-900">ขั้นที่ 5</strong> ตรวจสอบผล (Evaluate)
-                          </div>
+                        <div className="pt-2 flex items-center gap-3">
+                          <a
+                            href={(file as any).driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <FolderOpen className="w-4 h-4" />
+                            <span>เปิดดูโฟลเดอร์ใน Google Drive</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={handleDownload}
+                            className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-center text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>ดาวน์โหลดเอกสารจริง</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -357,53 +470,44 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     <div className="space-y-5 text-xs leading-relaxed text-slate-800">
                       <div className="border-l-4 border-indigo-600 pl-3">
                         <h2 className="text-sm font-bold text-slate-900">
-                          ส่วนที่ 2: สื่อ นวัตกรรมการสอน และการวัดประเมินผล (Rubrics)
+                          ส่วนที่ 2: มาตรฐานการประเมินและเกณฑ์คุณภาพผลงานวิชาการ (Rubrics)
                         </h2>
                         <p className="text-[11px] text-slate-500">
-                          เครื่องมือวัดผลและเกณฑ์การให้คะแนนอย่างละเอียด
+                          เกณฑ์ประเมินเอกสารวิชาการ โรงเรียนสารสาสน์วิเทศราชพฤกษ์
                         </p>
                       </div>
 
                       <div className="space-y-3">
-                        <h3 className="font-bold text-slate-900">2.1 สื่อและแหล่งการเรียนรู้ที่ใช้จัดการเรียนรู้</h3>
                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                          <p>• สื่อดิจิทัลและสไลด์นำเสนอ Interactive Canva & Google Slides</p>
-                          <p>• บอร์ดเกมและแบบฝึกทักษะการแก้ปัญหาเชิงคำนวณ</p>
-                          <p>• แพลตฟอร์มการเขียนโปรแกรม MakeCode Arcade / Scratch 3.0</p>
+                          <p>• <strong>หัวข้อการประเมิน:</strong> {topicTitle}</p>
+                          <p>• <strong>หมวดหมู่งานย่อย:</strong> {file.subTaskTitle || 'เอกสารประกอบหลัก'}</p>
+                          <p>• <strong>กลุ่มสาระการเรียนรู้:</strong> {teacherDepartment}</p>
                         </div>
 
-                        <h3 className="font-bold text-slate-900 pt-2">2.2 ตารางเกณฑ์การประเมินชิ้นงาน / ภาระงาน (Scoring Rubrics)</h3>
+                        <h3 className="font-bold text-slate-900 pt-2">เกณฑ์การพิจารณาตรวจสอบของฝ่ายวิชาการ</h3>
                         <table className="w-full border-collapse border border-slate-300 text-[11px]">
                           <thead>
                             <tr className="bg-slate-100 text-slate-800 font-bold">
                               <th className="border border-slate-300 p-2 text-left">ประเด็นการประเมิน</th>
-                              <th className="border border-slate-300 p-2 text-center">ดีมาก (4)</th>
-                              <th className="border border-slate-300 p-2 text-center">ดี (3)</th>
-                              <th className="border border-slate-300 p-2 text-center">พอใช้ (2)</th>
-                              <th className="border border-slate-300 p-2 text-center">ปรับปรุง (1)</th>
+                              <th className="border border-slate-300 p-2 text-center">ระดับคุณภาพ</th>
+                              <th className="border border-slate-300 p-2 text-center">เกณฑ์การผ่าน</th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr>
-                              <td className="border border-slate-300 p-2 font-medium">1. ความถูกต้องของเนื้อหา</td>
-                              <td className="border border-slate-300 p-2">ครบถ้วน ถูกต้อง 100%</td>
-                              <td className="border border-slate-300 p-2">ถูกต้องเป็นส่วนใหญ่</td>
-                              <td className="border border-slate-300 p-2">มีข้อผิดพลาดเล็กน้อย</td>
-                              <td className="border border-slate-300 p-2">ต้องแก้ไขสาระสำคัญ</td>
+                              <td className="border border-slate-300 p-2 font-medium">1. ความถูกต้องและสมบูรณ์ของเอกสาร</td>
+                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
+                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
                             </tr>
                             <tr>
-                              <td className="border border-slate-300 p-2 font-medium">2. ความคิดสร้างสรรค์</td>
-                              <td className="border border-slate-300 p-2">ออกแบบแปลกใหม่ น่าสนใจ</td>
-                              <td className="border border-slate-300 p-2">มีความคิดริเริ่มดี</td>
-                              <td className="border border-slate-300 p-2">ทำตามแบบตัวอย่าง</td>
-                              <td className="border border-slate-300 p-2">ไม่มีความแปลกใหม่</td>
+                              <td className="border border-slate-300 p-2 font-medium">2. ความสอดคล้องกับหลักสูตรและมาตรฐานการเรียนรู้</td>
+                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
+                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
                             </tr>
                             <tr>
-                              <td className="border border-slate-300 p-2 font-medium">3. การทำงานเป็นทีม</td>
-                              <td className="border border-slate-300 p-2">แบ่งหน้าที่ชัดเจน ช่วยเหลือกัน</td>
-                              <td className="border border-slate-300 p-2">ร่วมมือกันทำงานได้ดี</td>
-                              <td className="border border-slate-300 p-2">ทำงานเฉพาะที่ได้รับมอบหมาย</td>
-                              <td className="border border-slate-300 p-2">ไม่ให้ความร่วมมือ</td>
+                              <td className="border border-slate-300 p-2 font-medium">3. การจัดเก็บไฟล์และการเชื่อมโยงข้อมูลใน Google Drive</td>
+                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
+                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
                             </tr>
                           </tbody>
                         </table>

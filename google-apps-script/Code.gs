@@ -6,26 +6,7 @@
  */
 
 const TARGET_SHEET_ID = "1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU";
-const TARGET_DRIVE_FOLDER_ID = "1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM";
-
-function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
-    status: "online",
-    message: "ระบบ Google Sheets & Google Drive Sync พร้อมรับข้อมูลแบบเรียลไทม์",
-    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/" + TARGET_SHEET_ID,
-    driveFolderUrl: "https://drive.google.com/drive/folders/" + TARGET_DRIVE_FOLDER_ID,
-    timestamp: new Date().toISOString()
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-/**
- * ฟังก์ชันสำหรับกด "เรียกใช้ (Run)" ใน Apps Script Editor เพื่ออนุมัติสิทธิ์ DriveApp 1 ครั้ง
- */
-function testAuthorize() {
-  const root = DriveApp.getFolderById(TARGET_DRIVE_FOLDER_ID);
-  Logger.log("✓ ได้รับสิทธิ์ Google Drive สำเร็จ! ชื่อโฟลเดอร์: " + root.getName());
-  return root.getName();
-}
+const TARGET_DRIVE_FOLDER_ID = "1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd";
 
 function getOrCreateFolder(parentFolder, folderName) {
   const folders = parentFolder.getFoldersByName(folderName);
@@ -35,9 +16,57 @@ function getOrCreateFolder(parentFolder, folderName) {
   return parentFolder.createFolder(folderName);
 }
 
+function getTargetDriveFolder(preferredFolderId) {
+  if (preferredFolderId) {
+    try {
+      return DriveApp.getFolderById(preferredFolderId.trim());
+    } catch (e) {}
+  }
+  try {
+    return DriveApp.getFolderById(TARGET_DRIVE_FOLDER_ID);
+  } catch (e) {}
+  try {
+    const byName = DriveApp.getFoldersByName("File");
+    if (byName.hasNext()) {
+      return byName.next();
+    }
+  } catch (e) {}
+  const root = DriveApp.getRootFolder();
+  return getOrCreateFolder(root, "File");
+}
+
+function doGet(e) {
+  try {
+    const root = getTargetDriveFolder(TARGET_DRIVE_FOLDER_ID);
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "online",
+      message: "ระบบ Google Sheets & Google Drive Sync พร้อมรับข้อมูลแบบเรียลไทม์",
+      spreadsheetUrl: "https://docs.google.com/spreadsheets/d/" + TARGET_SHEET_ID,
+      driveFolderId: root.getId(),
+      driveFolderName: root.getName(),
+      driveFolderUrl: root.getUrl(),
+      timestamp: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "drive_error",
+      error: err.toString(),
+      targetFolderId: TARGET_DRIVE_FOLDER_ID
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * ฟังก์ชันสำหรับกด "เรียกใช้ (Run)" ใน Apps Script Editor เพื่ออนุมัติสิทธิ์ DriveApp 1 ครั้ง
+ */
+function testAuthorize() {
+  const root = getTargetDriveFolder(TARGET_DRIVE_FOLDER_ID);
+  Logger.log("✓ ได้รับสิทธิ์ Google Drive สำเร็จ! ชื่อโฟลเดอร์: " + root.getName() + " | ID: " + root.getId());
+  return root.getName();
+}
+
 function handleFileUpload(data) {
-  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
-  const rootFolder = DriveApp.getFolderById(folderId);
+  const rootFolder = getTargetDriveFolder(data.folderId);
   
   // Create or get subfolder for topic
   const topicTitle = (data.topicTitle || "ผลงานทั่วไป").trim();
@@ -90,8 +119,7 @@ function handleFileUpload(data) {
 }
 
 function handleBatchFilesUpload(data) {
-  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
-  const rootFolder = DriveApp.getFolderById(folderId);
+  const rootFolder = getTargetDriveFolder(data.folderId);
   const topicTitle = (data.topicTitle || "ผลงานทั่วไป").trim();
   const topicFolder = getOrCreateFolder(rootFolder, topicTitle);
 
@@ -147,8 +175,7 @@ function handleBatchFilesUpload(data) {
 }
 
 function handleInitDriveFolders(data) {
-  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
-  const rootFolder = DriveApp.getFolderById(folderId);
+  const rootFolder = getTargetDriveFolder(data.folderId);
   const topics = data.topics || [];
   const results = [];
 

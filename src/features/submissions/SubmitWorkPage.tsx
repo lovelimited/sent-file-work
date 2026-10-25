@@ -325,7 +325,7 @@ export const SubmitWorkPage: React.FC = () => {
   const executeSubmission = async () => {
     if (!currentUser || !selectedTopic) return;
     const settings = getSettings();
-    const driveFolderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM';
+    const driveFolderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
 
     try {
       let uploadedFilesList = files.map(f => ({
