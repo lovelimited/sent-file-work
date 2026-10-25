@@ -39,7 +39,7 @@ export interface SheetsSyncPayload {
 }
 
 const STORAGE_KEY_LAST_SYNC = 'sent_work_sheets_last_sync_time';
-const GAS_WEBHOOK_URL = 'https://script.google.com/u/0/home/projects/1H_l1PgGEO65Y80m7dgtyak2JKNz7hE_fA_nWwYVYcpqnpMb5A6ot3cUH/edit';
+export const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwWXslp2PkyGAeAL1YGWe84sc6czzRMOZaJdxYI7sScXGbgg8eCayu82sL2-INeujErDQ/exec';
 
 /**
  * Perform real-time data sync to Google Sheets
@@ -146,18 +146,34 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
       triggerReason
     }));
 
-    // Trigger Google Apps Script Webhook asynchronously if deployed
-    try {
-      if (GAS_WEBHOOK_URL && GAS_WEBHOOK_URL.includes('/exec')) {
-        fetch(GAS_WEBHOOK_URL, {
+    // Trigger Google Apps Script Webhook asynchronously or await if deployed
+    const webhookUrl = settings.googleAppsScriptWebhookUrl || GAS_WEBHOOK_URL;
+    let netSuccess = false;
+
+    if (webhookUrl && webhookUrl.includes('/exec')) {
+      try {
+        const resp = await fetch(webhookUrl, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
-        }).catch(() => {});
+        });
+        if (resp.ok) {
+          netSuccess = true;
+        }
+      } catch (postErr) {
+        // Fallback with mode: 'no-cors' for browser environments with strict extensions
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          netSuccess = true;
+        } catch (fallbackErr) {
+          console.warn('Google Sheets sync background error:', fallbackErr);
+        }
       }
-    } catch (netErr) {
-      // safe fallback
     }
 
     // Dispatch global event for live UI update

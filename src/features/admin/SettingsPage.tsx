@@ -11,9 +11,11 @@ import {
   Bell, 
   CheckCircle2, 
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
 
 export const SettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -190,13 +192,51 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-amber-600" />
-                Google Apps Script Webhook
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-amber-600" />
+                  Google Apps Script Webhook URL (ระบบซิงค์ข้อมูลชีตอัตโนมัติ)
+                </span>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-mono font-bold">
+                  Active Web App (/exec)
+                </span>
               </label>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 truncate">
-                https://script.google.com/u/0/home/projects/1H_l1PgGEO65Y80m7dgtyak2JKNz7hE_fA_nWwYVYcpqnpMb5A6ot3cUH/edit
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={form.googleAppsScriptWebhookUrl || 'https://script.google.com/macros/s/AKfycbwWXslp2PkyGAeAL1YGWe84sc6czzRMOZaJdxYI7sScXGbgg8eCayu82sL2-INeujErDQ/exec'}
+                  onChange={(e) => handleChange('googleAppsScriptWebhookUrl', e.target.value)}
+                  className="flex-1 text-xs font-mono rounded-xl border border-slate-200 p-2.5 bg-slate-50 text-slate-800"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (currentUser) saveSettings(form, currentUser);
+                    const res = await syncDataToGoogleSheets('SETTINGS_TEST');
+                    Swal.fire({
+                      title: res.success ? 'ทดสอบซิงค์สำเร็จ!' : 'ซิงค์ไม่สำเร็จ',
+                      text: res.message,
+                      icon: res.success ? 'success' : 'error',
+                      confirmButtonText: 'เปิดดู Google Sheets',
+                      showCancelButton: true,
+                      cancelButtonText: 'ปิด',
+                      confirmButtonColor: '#16a34a'
+                    }).then(r => {
+                      if (r.isConfirmed) {
+                        window.open(`https://docs.google.com/spreadsheets/d/${form.googleSheetReportId}`, '_blank');
+                      }
+                    });
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm shrink-0"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>ทดสอบซิงค์ชีต</span>
+                </button>
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Webhook สำหรับเชื่อมต่อ Google Sheets ผ่าน Google Apps Script อัตโนมัติทุกครั้งที่มีความเคลื่อนไหว
+              </p>
             </div>
           </div>
         </div>

@@ -218,5 +218,6 @@ export interface SystemSettings {
   timezone: string;
   googleDriveRootFolderId: string;
   googleSheetReportId: string;
+  googleAppsScriptWebhookUrl?: string;
   lineNotifyEnabled: boolean;
 }

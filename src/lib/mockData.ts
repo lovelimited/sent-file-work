@@ -24,6 +24,7 @@ export const initialSettings: SystemSettings = {
   timezone: "Asia/Bangkok (UTC+7)",
   googleDriveRootFolderId: "1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM",
   googleSheetReportId: "1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU",
+  googleAppsScriptWebhookUrl: "https://script.google.com/macros/s/AKfycbwWXslp2PkyGAeAL1YGWe84sc6czzRMOZaJdxYI7sScXGbgg8eCayu82sL2-INeujErDQ/exec",
   lineNotifyEnabled: true,
 };
 
