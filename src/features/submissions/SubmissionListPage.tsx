@@ -5,9 +5,10 @@ import {
   getSubmissionTopics, 
   getUsers, 
   hasDemoSubmissions, 
-  deleteDemoSubmissions 
+  deleteDemoSubmissions,
+  submitAdminReview 
 } from '../../lib/storage';
-import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
+import { syncDataToGoogleSheets, triggerAutoSyncToGoogleSheets } from '../../lib/googleSheetsSync';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Link } from 'react-router-dom';
 import { Submission, SubmissionTopic, User } from '../../types';
@@ -34,6 +35,7 @@ import {
   ListTodo
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import confetti from 'canvas-confetti';
 
 export const SubmissionListPage: React.FC = () => {
   const { currentUser, role } = useAuth();
@@ -136,12 +138,70 @@ export const SubmissionListPage: React.FC = () => {
     }
   };
 
+  const isAdmin = 
+    role === 'admin' || 
+    currentUser?.role === 'admin' || 
+    currentUser?.email?.toLowerCase() === 'drive.limited@gmail.com' ||
+    Boolean(currentUser?.displayName && currentUser.displayName.includes('กฤตพจน์')) ||
+    Boolean(currentUser?.displayName && currentUser.displayName.includes('แอดมิน')) ||
+    Boolean(currentUser?.displayName && currentUser.displayName.includes('Admin'));
+
+  // 1-Click Quick Approve directly from submission list
+  const handleQuickApproveFromList = (e: React.MouseEvent, sub: Submission) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!currentUser || !isAdmin) {
+      Swal.fire('สงวนสิทธิ์เฉพาะแอดมิน', 'คุณต้องใช้สิทธิ์แอดมินในการอนุมัติผลงาน', 'warning');
+      return;
+    }
+
+    Swal.fire({
+      title: '✓ ยืนยันอนุมัติผลงานทันที?',
+      html: `
+        <div class="text-left text-sm space-y-2 text-slate-700">
+          <p>ยืนยันอนุมัติผลงาน: <b>"${sub.title}"</b></p>
+          <p>ครูผู้ส่ง: <b>${sub.teacherName}</b> (${sub.teacherDepartment || 'ทั่วไป'})</p>
+          <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-950 text-xs leading-relaxed mt-2">
+            <b>ผลลัพธ์:</b> ระบบจะบันทึกสถานะ "ผ่านการตรวจรับรอง (Passed)" ให้ทุกงานย่อย อัปเดต Cloud Firestore และซิงค์ Google Sheets ทันที
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '✓ ยืนยันอนุมัติผ่าน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#059669',
+      cancelButtonColor: '#64748b'
+    }).then(res => {
+      if (res.isConfirmed) {
+        submitAdminReview(
+          sub.id,
+          'passed',
+          'เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย',
+          '',
+          currentUser
+        );
+        triggerAutoSyncToGoogleSheets('ADMIN_QUICK_APPROVE_LIST');
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        Swal.fire({
+          title: 'อนุมัติผลงานสำเร็จ!',
+          text: `ผลงาน "${sub.title}" ได้รับการอนุมัติผ่านเรียบร้อยแล้ว`,
+          icon: 'success',
+          confirmButtonColor: '#059669',
+          timer: 2000,
+          showConfirmButton: false
+        });
+        reloadData();
+      }
+    });
+  };
+
   // Role scoping: Admin sees all, teachers see their own submissions in feed
   const scopedSubmissions = useMemo(() => {
-    return role === 'admin'
+    return isAdmin
       ? submissions
       : submissions.filter(s => s.teacherUid === currentUser?.uid);
-  }, [submissions, role, currentUser]);
+  }, [submissions, isAdmin, currentUser]);
 
   // Status stats
   const passedCount = scopedSubmissions.filter(s => s.status === 'passed').length;
@@ -613,12 +673,23 @@ export const SubmissionListPage: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-3 flex-shrink-0">
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {isAdmin && sub.status !== 'passed' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleQuickApproveFromList(e, sub)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                                    title="คลิกเพื่ออนุมัติรับรองผลงานนี้ทันที"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>อนุมัติทันที</span>
+                                  </button>
+                                )}
                                 <Link
                                   to={`/submissions/${sub.id}`}
-                                  className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-semibold transition-colors"
+                                  className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-semibold transition-colors bg-white shadow-2xs"
                                 >
-                                  {role === 'admin' ? 'ตรวจงาน / ดูรายละเอียด' : 'ดูรายละเอียด'} <ArrowRight className="w-3.5 h-3.5" />
+                                  {isAdmin ? 'ตรวจงาน / ดูรายละเอียด' : 'ดูรายละเอียด'} <ArrowRight className="w-3.5 h-3.5" />
                                 </Link>
                               </div>
                             </div>
@@ -746,12 +817,23 @@ export const SubmissionListPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {isAdmin && sub.status !== 'passed' && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickApproveFromList(e, sub)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                            title="คลิกเพื่ออนุมัติรับรองผลงานนี้ทันที"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>อนุมัติทันที</span>
+                          </button>
+                        )}
                         <Link
                           to={`/submissions/${sub.id}`}
-                          className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-medium transition-colors"
+                          className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-semibold transition-colors bg-white shadow-2xs"
                         >
-                          ดูรายละเอียด <ArrowRight className="w-3.5 h-3.5" />
+                          {isAdmin ? 'ตรวจงาน / ดูรายละเอียด' : 'ดูรายละเอียด'} <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
                       </div>
                     </div>

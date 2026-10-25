@@ -593,7 +593,33 @@ export function submitAdminReview(
       completed: total,
       passed,
     };
+  } else if (decision === 'passed') {
+    const topics = getSubmissionTopics();
+    const topic = topics.find(t => t.id === submissions[subIndex].topicId);
+    if (topic?.subTasks && topic.subTasks.length > 0) {
+      const autoSubReviews: Record<string, {
+        subTaskId: string;
+        subTaskTitle: string;
+        decision: 'passed' | 'revision_required';
+        feedback?: string;
+      }> = {};
+      topic.subTasks.forEach(st => {
+        autoSubReviews[st.id] = {
+          subTaskId: st.id,
+          subTaskTitle: st.title,
+          decision: 'passed',
+          feedback: 'อนุมัติผ่านเรียบร้อย'
+        };
+      });
+      newReview.subTaskReviews = autoSubReviews;
+      submissions[subIndex].subTasksCount = {
+        total: topic.subTasks.length,
+        completed: topic.subTasks.length,
+        passed: topic.subTasks.length,
+      };
+    }
   }
+
   submissions[subIndex].status = decision;
   submissions[subIndex].latestReviewDecision = decision;
   submissions[subIndex].updatedAt = now;
