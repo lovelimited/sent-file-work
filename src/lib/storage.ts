@@ -234,7 +234,7 @@ export function getVersionsBySubmissionId(submissionId: string): SubmissionVersi
 
 export function createSubmission(
   submissionData: Omit<Submission, 'id' | 'currentVersionNumber' | 'submittedAt' | 'updatedAt' | 'status' | 'isLate'>,
-  initialFiles: Array<{ fileName: string; fileSizeBytes: number; mimeType: string; previewUrl?: string; downloadUrl?: string; subTaskId?: string; subTaskTitle?: string }>,
+  initialFiles: Array<{ fileName: string; fileSizeBytes: number; mimeType: string; previewUrl?: string; downloadUrl?: string; driveFileId?: string; driveUrl?: string; subTaskId?: string; subTaskTitle?: string }>,
   note: string,
   externalLinks: string[],
   actor: User
@@ -289,8 +289,10 @@ export function createSubmission(
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
       mimeType: f.mimeType,
-      previewUrl: f.previewUrl,
-      downloadUrl: f.downloadUrl || '#',
+      driveFileId: f.driveFileId,
+      driveUrl: f.driveUrl,
+      previewUrl: f.previewUrl || f.driveUrl,
+      downloadUrl: f.downloadUrl || f.driveUrl || '#',
       folderName,
       folderPath,
       subTaskId: f.subTaskId,
@@ -330,7 +332,7 @@ export function createSubmission(
 
 export function addSubmissionVersion(
   submissionId: string,
-  files: Array<{ fileName: string; fileSizeBytes: number; mimeType: string; previewUrl?: string; downloadUrl?: string; subTaskId?: string; subTaskTitle?: string }>,
+  files: Array<{ fileName: string; fileSizeBytes: number; mimeType: string; previewUrl?: string; downloadUrl?: string; driveFileId?: string; driveUrl?: string; subTaskId?: string; subTaskTitle?: string }>,
   note: string,
   externalLinks: string[],
   actor: User
@@ -368,8 +370,10 @@ export function addSubmissionVersion(
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
       mimeType: f.mimeType,
-      previewUrl: f.previewUrl,
-      downloadUrl: f.downloadUrl || '#',
+      driveFileId: f.driveFileId,
+      driveUrl: f.driveUrl,
+      previewUrl: f.previewUrl || f.driveUrl,
+      downloadUrl: f.downloadUrl || f.driveUrl || '#',
       folderName,
       folderPath,
       subTaskId: f.subTaskId,

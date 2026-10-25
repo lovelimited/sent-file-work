@@ -65,6 +65,7 @@ export interface SubmissionFile {
   fileSizeBytes: number;
   mimeType: string;
   driveFileId?: string;
+  driveUrl?: string;
   downloadUrl?: string;
   previewUrl?: string;
   folderName?: string;       // ชื่องาน / โฟลเดอร์ที่เก็บไฟล์

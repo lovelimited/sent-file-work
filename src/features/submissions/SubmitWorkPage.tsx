@@ -4,8 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   getSubmissionTopics, 
   createSubmission,
-  getSubmissions 
+  getSubmissions,
+  getSettings
 } from '../../lib/storage';
+import { uploadFilesToGoogleDrive } from '../../lib/googleDriveService';
 import { SubmissionTopic, TopicSubTask, Submission } from '../../types';
 import { 
   UploadCloud, 
@@ -98,6 +100,7 @@ export const SubmitWorkPage: React.FC = () => {
   
   // Files state with optional subTaskId and subTaskTitle mapping
   const [files, setFiles] = useState<Array<{
+    fileObject?: File;
     fileName: string;
     fileSizeBytes: number;
     mimeType: string;
@@ -184,6 +187,7 @@ export const SubmitWorkPage: React.FC = () => {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       if (allowedExts.includes(ext) || allowedExts.length === 0) {
         validFiles.push({
+          fileObject: file,
           fileName: file.name,
           fileSizeBytes: file.size,
           mimeType: file.type || 'application/octet-stream',
@@ -318,10 +322,72 @@ export const SubmitWorkPage: React.FC = () => {
     executeSubmission();
   };
 
-  const executeSubmission = () => {
+  const executeSubmission = async () => {
     if (!currentUser || !selectedTopic) return;
+    const settings = getSettings();
+    const driveFolderId = settings.googleDriveRootFolderId || '1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM';
 
     try {
+      let uploadedFilesList = files.map(f => ({
+        fileName: f.fileName,
+        fileSizeBytes: f.fileSizeBytes,
+        mimeType: f.mimeType,
+        previewUrl: f.previewUrl,
+        downloadUrl: '#',
+        driveFileId: undefined as string | undefined,
+        driveUrl: undefined as string | undefined,
+        subTaskId: f.subTaskId,
+        subTaskTitle: f.subTaskTitle
+      }));
+
+      let driveFolderUrl = `https://drive.google.com/drive/folders/${driveFolderId}`;
+      let needsAuth = false;
+
+      if (files.length > 0) {
+        Swal.fire({
+          title: 'กำลังอัปโหลดไฟล์ไปยัง Google Drive...',
+          html: `
+            <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+              <p>กำลังส่งไฟล์เอกสารเข้าสู่โฟลเดอร์ Google Drive ของสถาบัน...</p>
+              <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 font-mono text-[11px]">
+                📁 Google Drive / ${selectedTopic.title} /
+              </div>
+              <p class="text-slate-400 text-[10px]">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
+            </div>
+          `,
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        const driveRes = await uploadFilesToGoogleDrive({
+          topicTitle: selectedTopic.title,
+          teacherName: currentUser.displayName,
+          files: files
+        });
+
+        if (driveRes.success) {
+          if (driveRes.folderUrl) driveFolderUrl = driveRes.folderUrl;
+          uploadedFilesList = files.map(f => {
+            const up = driveRes.files.find(uf => uf.fileName === f.fileName);
+            return {
+              fileName: f.fileName,
+              fileSizeBytes: f.fileSizeBytes,
+              mimeType: f.mimeType,
+              previewUrl: up?.previewUrl || f.previewUrl,
+              downloadUrl: up?.downloadUrl || up?.fileUrl || '#',
+              driveFileId: up?.fileId,
+              driveUrl: up?.fileUrl,
+              subTaskId: f.subTaskId,
+              subTaskTitle: f.subTaskTitle
+            };
+          });
+        } else if (driveRes.needsAuthorization) {
+          needsAuth = true;
+        }
+      }
+
       const newSub = createSubmission(
         {
           topicId: selectedTopic.id,
@@ -332,7 +398,7 @@ export const SubmitWorkPage: React.FC = () => {
           teacherDepartment: currentUser.learningAreaName || 'กลุ่มสาระการเรียนรู้ทั่วไป',
           title: title.trim(),
         },
-        files,
+        uploadedFilesList,
         note,
         links,
         currentUser
@@ -345,8 +411,39 @@ export const SubmitWorkPage: React.FC = () => {
         origin: { y: 0.6 }
       });
 
+      if (needsAuth) {
+        Swal.fire({
+          title: 'บันทึกงานแล้ว (รอสิทธิ์ Google Drive)',
+          html: `
+            <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+              <p class="text-emerald-700 font-semibold">✓ บันทึกข้อมูลการส่งงานในระบบเรียบร้อยแล้ว</p>
+              <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1">
+                <p class="font-bold flex items-center gap-1.5 text-xs text-amber-800">
+                  ⚠️ ต้องการยืนยันสิทธิ์ Google Drive ครั้งแรก
+                </p>
+                <p class="text-[11px] text-amber-700 leading-relaxed">
+                  ระบบ Google Apps Script ยังไม่ได้รับสิทธิ์เข้าถึง Google Drive กรุณากดปุ่มด้านล่างเพื่อเปิดหน้าสคริปต์ แล้วกด <b>"เรียกใช้ (Run)"</b> ฟังก์ชัน <code>testAuthorize</code> 1 ครั้งเพื่ออนุมัติสิทธิ์
+                </p>
+              </div>
+            </div>
+          `,
+          icon: 'warning',
+          confirmButtonText: 'เปิด Apps Script เพื่อยืนยันสิทธิ์',
+          showCancelButton: true,
+          cancelButtonText: 'ดูผลงานในระบบ',
+          confirmButtonColor: '#2563eb',
+          cancelButtonColor: '#64748b'
+        }).then(res => {
+          if (res.isConfirmed) {
+            window.open('https://script.google.com/u/0/home/projects/1H_l1PgGEO65Y80m7dgtyak2JKNz7hE_fA_nWwYVYcpqnpMb5A6ot3cUH/edit', '_blank');
+          }
+          navigate(`/submissions/${newSub.id}`);
+        });
+        return;
+      }
+
       Swal.fire({
-        title: 'ส่งผลงานสำเร็จแล้ว!',
+        title: 'ส่งผลงานและอัปโหลดเข้า Drive สำเร็จ!',
         html: `
           <div class="text-left text-xs space-y-2 mt-2">
             <p>ระบบได้บันทึกการส่งงานในหัวข้อ <b>"${selectedTopic.title}"</b> เรียบร้อยแล้ว</p>
@@ -355,28 +452,42 @@ export const SubmitWorkPage: React.FC = () => {
                 ✓ แนบงานย่อยสำเร็จ: ${new Set(files.map(f => f.subTaskId).filter(Boolean)).size}/${selectedTopic.subTasks.length} รายการ
               </p>
             ` : ''}
-            <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 space-y-1">
+            <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 space-y-1.5">
               <p class="font-bold flex items-center gap-1.5 text-xs">
-                📁 จัดเก็บไฟล์เข้าโฟลเดอร์ตามชื่องานสำเร็จ:
+                📁 จัดเก็บไฟล์เข้าโฟลเดอร์ Google Drive:
               </p>
-              <p class="font-mono text-[11px] bg-white p-1.5 rounded border border-blue-200 text-blue-700">
+              <p class="font-mono text-[11px] bg-white p-1.5 rounded border border-blue-200 text-blue-700 break-all">
                 Google Drive / ${selectedTopic.title} /
               </p>
-              <p class="text-[10px] text-slate-500">
-                ไฟล์ทั้งหมดถูกจัดเก็บแยกเข้าโฟลเดอร์ตามชื่องานบน Google Drive สถาบันอัตโนมัติ
-              </p>
+              <div class="pt-1">
+                <a
+                  href="${driveFolderUrl}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-semibold underline"
+                >
+                  เปิดดูโฟลเดอร์ใน Google Drive ↗
+                </a>
+              </div>
             </div>
           </div>
         `,
         icon: 'success',
+        showCancelButton: true,
         confirmButtonText: 'ดูรายละเอียดผลงาน',
+        cancelButtonText: 'เปิดดูใน Google Drive',
         confirmButtonColor: '#2563eb',
-      }).then(() => {
+        cancelButtonColor: '#059669'
+      }).then((res) => {
+        if (res.dismiss === Swal.DismissReason.cancel) {
+          window.open(driveFolderUrl, '_blank');
+        }
         navigate(`/submissions/${newSub.id}`);
       });
 
-    } catch (err) {
-      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกการส่งงานได้ กรุณาลองใหม่อีกครั้ง', 'error');
+    } catch (err: any) {
+      console.error('Submission error:', err);
+      Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถบันทึกการส่งงานได้ กรุณาลองใหม่อีกครั้ง', 'error');
     }
   };
 

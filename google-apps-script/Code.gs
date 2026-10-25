@@ -1,18 +1,172 @@
 /**
  * ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารวิชาการ
  * โรงเรียนสารสาสน์วิเทศราชพฤกษ์
- * Google Apps Script Webhook สำหรับซิงค์ข้อมูลลง Google Sheets อัตโนมัติ
+ * Google Apps Script Webhook สำหรับซิงค์ข้อมูลลง Google Sheets และอัปโหลดไฟล์ลง Google Drive อัตโนมัติ
  * พัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา
  */
 
 const TARGET_SHEET_ID = "1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU";
+const TARGET_DRIVE_FOLDER_ID = "1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAM";
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "online",
-    message: "ระบบ Google Sheets Sync พร้อมรับข้อมูลแบบเรียลไทม์",
+    message: "ระบบ Google Sheets & Google Drive Sync พร้อมรับข้อมูลแบบเรียลไทม์",
     spreadsheetUrl: "https://docs.google.com/spreadsheets/d/" + TARGET_SHEET_ID,
+    driveFolderUrl: "https://drive.google.com/drive/folders/" + TARGET_DRIVE_FOLDER_ID,
     timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * ฟังก์ชันสำหรับกด "เรียกใช้ (Run)" ใน Apps Script Editor เพื่ออนุมัติสิทธิ์ DriveApp 1 ครั้ง
+ */
+function testAuthorize() {
+  const root = DriveApp.getFolderById(TARGET_DRIVE_FOLDER_ID);
+  Logger.log("✓ ได้รับสิทธิ์ Google Drive สำเร็จ! ชื่อโฟลเดอร์: " + root.getName());
+  return root.getName();
+}
+
+function getOrCreateFolder(parentFolder, folderName) {
+  const folders = parentFolder.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return parentFolder.createFolder(folderName);
+}
+
+function handleFileUpload(data) {
+  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
+  const rootFolder = DriveApp.getFolderById(folderId);
+  
+  // Create or get subfolder for topic
+  const topicTitle = (data.topicTitle || "ผลงานทั่วไป").trim();
+  const topicFolder = getOrCreateFolder(rootFolder, topicTitle);
+  
+  // Optional: create or get subfolder for teacher
+  let targetFolder = topicFolder;
+  if (data.createTeacherFolder && data.teacherName) {
+    targetFolder = getOrCreateFolder(topicFolder, data.teacherName.trim());
+  }
+
+  // Construct final file name
+  let rawFileName = data.fileName || ("file_" + Date.now());
+  let finalFileName = rawFileName;
+  if (data.teacherName && !rawFileName.includes(data.teacherName)) {
+    finalFileName = "[" + data.teacherName.trim() + "] " + rawFileName;
+  }
+
+  // Decode base64
+  let base64Data = data.base64 || "";
+  if (base64Data.indexOf(',') > -1) {
+    base64Data = base64Data.split(',')[1];
+  }
+  const decoded = Utilities.base64Decode(base64Data);
+  const mimeType = data.mimeType || "application/octet-stream";
+  const blob = Utilities.newBlob(decoded, mimeType, finalFileName);
+
+  const file = targetFolder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {}
+
+  const fileId = file.getId();
+  const fileUrl = file.getUrl();
+  const downloadUrl = "https://drive.google.com/uc?export=download&id=" + fileId;
+  const previewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
+
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    message: "บันทึกไฟล์ลง Google Drive สำเร็จ",
+    fileId: fileId,
+    fileName: finalFileName,
+    fileUrl: fileUrl,
+    previewUrl: previewUrl,
+    downloadUrl: downloadUrl,
+    folderName: targetFolder.getName(),
+    folderUrl: targetFolder.getUrl(),
+    uploadedAt: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleBatchFilesUpload(data) {
+  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
+  const rootFolder = DriveApp.getFolderById(folderId);
+  const topicTitle = (data.topicTitle || "ผลงานทั่วไป").trim();
+  const topicFolder = getOrCreateFolder(rootFolder, topicTitle);
+
+  let targetFolder = topicFolder;
+  if (data.createTeacherFolder && data.teacherName) {
+    targetFolder = getOrCreateFolder(topicFolder, data.teacherName.trim());
+  }
+
+  const uploadedFiles = [];
+  const filesList = data.files || [];
+
+  for (let i = 0; i < filesList.length; i++) {
+    const f = filesList[i];
+    let rawFileName = f.fileName || ("file_" + Date.now() + "_" + i);
+    let finalFileName = rawFileName;
+    if (data.teacherName && !rawFileName.includes(data.teacherName)) {
+      finalFileName = "[" + data.teacherName.trim() + "] " + rawFileName;
+    }
+
+    let b64 = f.base64 || "";
+    if (b64.indexOf(',') > -1) {
+      b64 = b64.split(',')[1];
+    }
+    const decoded = Utilities.base64Decode(b64);
+    const mimeType = f.mimeType || "application/octet-stream";
+    const blob = Utilities.newBlob(decoded, mimeType, finalFileName);
+
+    const file = targetFolder.createFile(blob);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {}
+
+    const fileId = file.getId();
+    uploadedFiles.push({
+      originalName: f.fileName,
+      savedName: finalFileName,
+      fileId: fileId,
+      fileUrl: file.getUrl(),
+      previewUrl: "https://drive.google.com/file/d/" + fileId + "/view",
+      downloadUrl: "https://drive.google.com/uc?export=download&id=" + fileId,
+      subTaskId: f.subTaskId
+    });
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    message: "บันทึก " + uploadedFiles.length + " ไฟล์ลง Google Drive สำเร็จ",
+    folderName: targetFolder.getName(),
+    folderUrl: targetFolder.getUrl(),
+    files: uploadedFiles,
+    uploadedAt: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleInitDriveFolders(data) {
+  const folderId = data.folderId || TARGET_DRIVE_FOLDER_ID;
+  const rootFolder = DriveApp.getFolderById(folderId);
+  const topics = data.topics || [];
+  const results = [];
+
+  for (let i = 0; i < topics.length; i++) {
+    const title = topics[i].title || topics[i];
+    const sub = getOrCreateFolder(rootFolder, title.trim());
+    results.push({
+      title: title,
+      folderId: sub.getId(),
+      folderUrl: sub.getUrl()
+    });
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    message: "เตรียมโฟลเดอร์ Google Drive สำหรับ " + results.length + " หัวข้อเรียบร้อยแล้ว",
+    rootFolderUrl: rootFolder.getUrl(),
+    topicFolders: results
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -26,6 +180,19 @@ function doPost(e) {
     }
 
     const data = JSON.parse(e.postData.contents);
+
+    // Route to Google Drive operations if requested
+    if (data.action === "UPLOAD_FILE") {
+      return handleFileUpload(data);
+    }
+    if (data.action === "UPLOAD_FILES") {
+      return handleBatchFilesUpload(data);
+    }
+    if (data.action === "INIT_DRIVE_FOLDERS") {
+      return handleInitDriveFolders(data);
+    }
+
+    // Default: Google Sheets synchronization
     const sheetId = data.sheetId || TARGET_SHEET_ID;
     const ss = SpreadsheetApp.openById(sheetId);
     const updateTimeStr = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) + " น.";
@@ -300,7 +467,7 @@ function doPost(e) {
       );
 
       teacherSheet.getRange(6, 1, rosterRows.length, 1).setHorizontalAlignment("center");
-      teacherSheet.getRange(6, 6, rosterRows.length, 5).setHorizontalAlignment("center");
+      teacherSheet.getRange(6, 8, rosterRows.length, 3).setHorizontalAlignment("center");
     }
 
     for (let c = 1; c <= teacherHeaders.length; c++) {
@@ -308,7 +475,7 @@ function doPost(e) {
     }
 
     // ==========================================
-    // 3. สร้าง/อัปเดตแท็บ "รายการส่งงานละเอียด" (Detail Log)
+    // 3. สร้าง/อัปเดตแท็บ "รายการส่งงานละเอียด" (Detailed Submissions)
     // ==========================================
     let detailSheet = ss.getSheetByName("รายการส่งงานละเอียด");
     if (!detailSheet) {
@@ -320,13 +487,14 @@ function doPost(e) {
     detailSheet.getRange("A1").setFontSize(14).setFontWeight("bold").setFontColor("#1e3a8a");
 
     detailSheet.getRange("A2").setValue(
-      "บันทึกประวัติการส่งงานครูและผลการตรวจประเมินวิชาการรายรายการ (ปีการศึกษา " + (data.academicYear || "2569") + " / " + (data.semester || "1") + ")"
+      "รายงานประวัติและผลการประเมินการส่งงานวิชาการครูรายบุคคล (ปีการศึกษา " + (data.academicYear || "2569") + " / " + (data.semester || "1") + ")"
     );
     detailSheet.getRange("A2").setFontSize(11).setFontWeight("bold").setFontColor("#475569");
 
     detailSheet.getRange("A3").setValue(
       "อัปเดตล่าสุด: " + updateTimeStr + 
-      " • ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา"
+      " • ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา" +
+      " • Google Drive Root: " + (data.googleDriveRootFolderId || TARGET_DRIVE_FOLDER_ID)
     );
     detailSheet.getRange("A3").setFontSize(9).setFontColor("#64748b");
 
@@ -334,20 +502,20 @@ function doPost(e) {
       "ลำดับ",
       "ชื่อ-นามสกุลครูผู้สอน",
       "กลุ่มสาระการเรียนรู้",
-      "รายการงาน / แผนการสอน",
+      "หัวข้องานที่มอบหมาย",
       "หมวดหมู่งาน",
-      "สถานะการตรวจประเมิน",
-      "ความคืบหน้างานย่อย",
-      "วัน-เวลาที่ส่ง",
-      "กำหนดส่ง",
-      "การตรงต่อเวลา",
-      "โฟลเดอร์ Google Drive",
-      "บันทึกผลการตรวจ / ข้อเสนอแนะ"
+      "สถานะการส่งงาน",
+      "ความคืบหน้างาย่อย",
+      "วันเวลาที่ส่งงาน",
+      "กำหนดส่ง (Due Date)",
+      "ระยะเวลาส่ง",
+      "ลิงก์ไฟล์ Google Drive",
+      "หมายเหตุ / ผลตรวจจากแอดมิน"
     ];
 
     const dHeaderRange = detailSheet.getRange(5, 1, 1, headers.length);
     dHeaderRange.setValues([headers]);
-    dHeaderRange.setBackground("#475569");
+    dHeaderRange.setBackground("#4338ca"); // Indigo color
     dHeaderRange.setFontColor("#ffffff");
     dHeaderRange.setFontWeight("bold");
     dHeaderRange.setHorizontalAlignment("center");
@@ -355,24 +523,31 @@ function doPost(e) {
 
     const rows = data.rows || [];
     if (rows.length > 0) {
-      const rowValues = rows.map(r => [
-        r.no,
-        r.teacherName,
-        r.department,
-        r.topicTitle,
-        r.category,
-        r.status,
-        r.subTasksProgress,
-        r.submittedAt,
-        r.dueDate,
-        r.timingStatus,
-        r.driveFolder,
-        r.adminReviewNote
-      ]);
+      const rowValues = [];
+      rows.forEach(r => {
+        let driveDisplay = r.driveFolder || "-";
+        if (r.driveUrl) {
+          driveDisplay = '=HYPERLINK("' + r.driveUrl + '", "📂 ' + (r.driveFolder || 'เปิดดูใน Drive') + '")';
+        }
+        rowValues.push([
+          r.no,
+          r.teacherName,
+          r.department,
+          r.topicTitle,
+          r.category,
+          r.status,
+          r.subTasksProgress || "-",
+          r.submittedAt,
+          r.dueDate,
+          r.timingStatus,
+          driveDisplay,
+          r.adminReviewNote
+        ]);
+      });
 
       const dDataRange = detailSheet.getRange(6, 1, rowValues.length, headers.length);
       dDataRange.setValues(rowValues);
-      dDataRange.setFontSize(10);
+      dDataRange.setFontSize(9.5);
       dDataRange.setVerticalAlignment("middle");
 
       detailSheet.getRange(5, 1, rowValues.length + 1, headers.length).setBorder(

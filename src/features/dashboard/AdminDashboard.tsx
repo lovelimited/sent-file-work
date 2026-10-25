@@ -25,7 +25,8 @@ import {
   Lock,
   ExternalLink,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  FolderOpen
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -118,11 +119,24 @@ export const AdminDashboard: React.FC = () => {
               href={`https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] cursor-pointer"
               title="เปิดดูเอกสาร Google Sheets ที่ระบบซิงค์ให้อัตโนมัติ"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>เปิดดู Google Sheets</span>
+              <span>Google Sheets</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+            </a>
+
+            {/* Direct Open Google Drive Link */}
+            <a
+              href={`https://drive.google.com/drive/folders/${settings.googleDriveRootFolderId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-950/30 transition-all hover:scale-[1.02] cursor-pointer"
+              title="เปิดดูโฟลเดอร์ Google Drive คลังผลงานครูของโรงเรียน"
+            >
+              <FolderOpen className="w-4 h-4" />
+              <span>Google Drive</span>
               <ExternalLink className="w-3.5 h-3.5 opacity-80" />
             </a>
 

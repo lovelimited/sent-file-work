@@ -3,7 +3,8 @@ import {
   getFullSubmissionMatrix, 
   getSubmissionTopics, 
   getSubmissions,
-  getUsers
+  getUsers,
+  getVersionsBySubmissionId
 } from './storage';
 
 export interface SheetsSyncPayload {
@@ -70,6 +71,7 @@ export interface SheetsSyncPayload {
     dueDate: string;
     timingStatus: string;
     driveFolder: string;
+    driveUrl?: string;
     adminReviewNote: string;
   }>;
 }
@@ -154,6 +156,10 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
           timing = sub.isLate ? 'ส่งล่าช้า (Late)' : 'ตรงต่อเวลา (On-time)';
         }
 
+        const versions = sub ? getVersionsBySubmissionId(sub.id) : [];
+        const latestVersion = versions[0];
+        const driveUrl = latestVersion?.files?.find(f => f.driveUrl)?.driveUrl || undefined;
+
         reportRows.push({
           no: rowNumber++,
           teacherName: r.teacher.displayName,
@@ -166,6 +172,7 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
           dueDate: dueDateStr,
           timingStatus: timing,
           driveFolder: `Google Drive / ${t.title} /`,
+          driveUrl: driveUrl,
           adminReviewNote: (sub as any)?.adminNote || (sub?.latestReviewDecision ? `ผลการตรวจ: ${sub.latestReviewDecision}` : '-')
         });
       });
