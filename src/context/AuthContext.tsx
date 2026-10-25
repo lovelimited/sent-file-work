@@ -229,6 +229,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
+      if (err?.code === 'auth/operation-not-allowed') {
+        return { 
+          success: false, 
+          error: 'Firebase: Error (auth/operation-not-allowed) - ยังไม่ได้เปิดใช้งาน Google Sign-In Provider ใน Firebase Console' 
+        };
+      }
       if (err?.code === 'auth/popup-closed-by-user') {
         return { success: false, error: 'หน้าต่างเข้าสู่ระบบ Google ถูกปิดก่อนทำรายการสำเร็จ' };
       }

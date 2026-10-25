@@ -116,12 +116,36 @@ export const LoginPage: React.FC = () => {
     if (res.success) {
       navigate('/');
     } else if (res.error) {
-      Swal.fire({
-        title: 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ',
-        text: res.error,
-        icon: 'warning',
-        confirmButtonColor: '#2563eb'
-      });
+      if (res.error.includes('operation-not-allowed') || res.error.includes('Firebase Console')) {
+        Swal.fire({
+          title: 'ยังไม่ได้เปิดใช้งาน Google Provider',
+          html: `
+            <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #334155;">
+              <p style="margin-bottom: 8px;">สาเหตุ: บัญชี Firebase โครงการ <b>send-file-51069</b> ยังไม่ได้กดเปิดสวิตช์ <b>Google Sign-in</b> ใน Firebase Console</p>
+              <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; color: #92400e;">
+                <b style="display: block; margin-bottom: 4px;">วิธีเปิดใช้งาน (ทำเพียงครั้งเดียว):</b>
+                <ol style="padding-left: 20px; margin: 0;">
+                  <li>ไปที่ลิงก์ <a href="https://console.firebase.google.com/project/send-file-51069/authentication/providers" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold;">Firebase Console &gt; Sign-in method</a></li>
+                  <li>คลิกเลือก <b>Google</b></li>
+                  <li>กดเปิดสวิตช์ <b>Enable</b></li>
+                  <li>เลือกอีเมล Support (drive.limited@gmail.com) แล้วกด <b>Save</b></li>
+                </ol>
+              </div>
+              <p style="font-size: 11px; color: #64748b; margin: 0;">* ในระหว่างนี้ สามารถเข้าใช้งานด้วยอีเมล <b>drive.limited@gmail.com</b> และรหัสผ่าน <b>krittapot001</b> ได้ตามปกติครับ</p>
+            </div>
+          `,
+          icon: 'info',
+          confirmButtonText: 'รับทราบ',
+          confirmButtonColor: '#2563eb'
+        });
+      } else {
+        Swal.fire({
+          title: 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ',
+          text: res.error,
+          icon: 'warning',
+          confirmButtonColor: '#2563eb'
+        });
+      }
     }
   };
 
