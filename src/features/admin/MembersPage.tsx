@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getUsers, updateUser, createUser, deleteUser, deleteDemoTeachers, getSettings } from '../../lib/storage';
 import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
+import { db } from '../../lib/firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { User, UserRole } from '../../types';
 import { 
   Users, 
@@ -32,6 +34,19 @@ export const MembersPage: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Auto-reload users on any mutation or cloud sync
+  React.useEffect(() => {
+    const handleDataChanged = () => {
+      setUsers(getUsers());
+    };
+    window.addEventListener('sent_work_data_changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
+    return () => {
+      window.removeEventListener('sent_work_data_changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+    };
+  }, []);
 
   // New user state
   const [newEmail, setNewEmail] = useState('');
@@ -93,6 +108,9 @@ export const MembersPage: React.FC = () => {
     }).then(res => {
       if (res.isConfirmed) {
         updateUser(uid, { role: targetRole }, currentUser);
+        try {
+          setDoc(doc(db, 'users', uid), { role: targetRole }, { merge: true }).catch(() => {});
+        } catch (e) {}
         reloadData();
         syncDataToGoogleSheets('ROLE_CHANGED');
         Swal.fire('เปลี่ยนสิทธิ์สำเร็จ', '', 'success');
@@ -116,6 +134,9 @@ export const MembersPage: React.FC = () => {
     }).then(res => {
       if (res.isConfirmed) {
         updateUser(user.uid, { status: nextStatus }, currentUser);
+        try {
+          setDoc(doc(db, 'users', user.uid), { status: nextStatus }, { merge: true }).catch(() => {});
+        } catch (e) {}
         reloadData();
         syncDataToGoogleSheets('STATUS_CHANGED');
         Swal.fire('อัปเดตสถานะสำเร็จ', '', 'success');
@@ -146,6 +167,9 @@ export const MembersPage: React.FC = () => {
     }).then(async res => {
       if (res.isConfirmed) {
         deleteUser(user.uid, currentUser);
+        try {
+          deleteDoc(doc(db, 'users', user.uid)).catch(() => {});
+        } catch (e) {}
         reloadData();
         await syncDataToGoogleSheets('USER_DELETED');
         Swal.fire('ลบผู้ใช้งานเรียบร้อยแล้ว', 'ข้อมูลถูกนำออกจากระบบและซิงค์ไปยัง Google Sheets แล้ว', 'success');
@@ -181,6 +205,11 @@ export const MembersPage: React.FC = () => {
     }).then(async res => {
       if (res.isConfirmed) {
         setIsSyncing(true);
+        demoTeachers.forEach(d => {
+          try {
+            deleteDoc(doc(db, 'users', d.uid)).catch(() => {});
+          } catch (e) {}
+        });
         const result = deleteDemoTeachers(currentUser);
         reloadData();
         await syncDataToGoogleSheets('DELETE_ALL_DEMO_USERS');
@@ -265,6 +294,9 @@ export const MembersPage: React.FC = () => {
     };
 
     createUser(newUser, currentUser);
+    try {
+      setDoc(doc(db, 'users', newUser.uid), newUser, { merge: true }).catch(() => {});
+    } catch (e) {}
     setShowAddModal(false);
     reloadData();
     await syncDataToGoogleSheets('USER_CREATED');

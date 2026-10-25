@@ -16,7 +16,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (getUserRole() == 'admin' || request.auth.token.email == 'drive.limited@gmail.com');
+      return isAuthenticated() && (
+        request.auth.token.email == 'drive.limited@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isReviewer() {
@@ -30,8 +34,8 @@ service cloud.firestore {
     // Users Collection
     match /users/{uid} {
       allow read: if isAuthenticated();
-      allow update: if isOwner(uid) || isAdmin();
-      allow create, delete: if isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     // Username Index - Private Server only

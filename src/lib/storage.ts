@@ -127,13 +127,18 @@ export function updateUser(uid: string, updates: Partial<User>, actor?: User): U
 
 export function createUser(user: User, actor?: User): User {
   const users = getUsers();
-  users.push(user);
+  const index = users.findIndex(u => u.uid === user.uid || (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()));
+  if (index >= 0) {
+    users[index] = { ...users[index], ...user, updatedAt: new Date().toISOString() };
+  } else {
+    users.push(user);
+  }
   setItem(STORAGE_KEYS.USERS, users);
   if (actor) {
     logActivity('CREATE_USER', 'User', user.uid, actor, { role: user.role, email: user.email });
   }
   notifyDataChanged('CREATE_USER');
-  return user;
+  return users[index >= 0 ? index : users.length - 1];
 }
 
 export function deleteUser(uid: string, actor?: User): boolean {

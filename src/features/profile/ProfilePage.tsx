@@ -11,6 +11,7 @@ export const ProfilePage: React.FC = () => {
   const [lastName, setLastName] = useState(currentUser?.lastName || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [subjectName, setSubjectName] = useState(currentUser?.subjects?.[0]?.name || 'วิทยาการคำนวณ');
+  const [learningAreaName, setLearningAreaName] = useState(currentUser?.learningAreaName || 'วิทยาศาสตร์และเทคโนโลยี');
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,10 +20,11 @@ export const ProfilePage: React.FC = () => {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone.trim(),
+      learningAreaName,
       subjects: [{ name: subjectName.trim() }],
     });
 
-    Swal.fire('บันทึกข้อมูลส่วนตัวเรียบร้อย', '', 'success');
+    Swal.fire('บันทึกข้อมูลส่วนตัวเรียบร้อย', 'ข้อมูลโปรไฟล์และกลุ่มสาระของคุณได้รับการอัปเดตแล้ว', 'success');
   };
 
   return (
@@ -96,6 +98,26 @@ export const ProfilePage: React.FC = () => {
               className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">กลุ่มสาระการเรียนรู้ / กลุ่มงาน</label>
+            <select
+              value={learningAreaName}
+              onChange={(e) => setLearningAreaName(e.target.value)}
+              className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 bg-white"
+            >
+              <option value="วิทยาศาสตร์และเทคโนโลยี">กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี</option>
+              <option value="คณิตศาสตร์">กลุ่มสาระการเรียนรู้คณิตศาสตร์</option>
+              <option value="ภาษาไทย">กลุ่มสาระการเรียนรู้ภาษาไทย</option>
+              <option value="สังคมศึกษา ศาสนา และวัฒนธรรม">กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนา และวัฒนธรรม</option>
+              <option value="ภาษาต่างประเทศ">กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ</option>
+              <option value="สุขศึกษาและพลศึกษา">กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา</option>
+              <option value="ศิลปะ">กลุ่มสาระการเรียนรู้ศิลปะ</option>
+              <option value="การงานอาชีพ">กลุ่มสาระการเรียนรู้การงานอาชีพ</option>
+              <option value="กิจกรรมพัฒนาผู้เรียน / วิชาการทั่วไป">กิจกรรมพัฒนาผู้เรียน / วิชาการทั่วไป</option>
+              <option value="ฝ่ายบริหารวิชาการ">ฝ่ายบริหารวิชาการ</option>
+            </select>
           </div>
 
           <div>

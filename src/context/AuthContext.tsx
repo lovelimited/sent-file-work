@@ -10,7 +10,7 @@ import {
   createUser,
   logActivity 
 } from '../lib/storage';
-import { auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider, db } from '../lib/firebase';
 import { 
   signInWithPopup, 
   signInWithEmailAndPassword, 
@@ -18,6 +18,8 @@ import {
   signOut as firebaseSignOut,
   sendPasswordResetEmail
 } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, onSnapshot } from 'firebase/firestore';
+import { syncDataToGoogleSheets } from '../lib/googleSheetsSync';
 
 export interface TeacherRegistrationData {
   email: string;
@@ -65,6 +67,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setStoredCurrentUser(currentUser);
     }
   }, [currentUser]);
+
+  // Synchronize users from Cloud Firestore across all devices in real time
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudUsers: User[] = [];
+          snapshot.forEach(docSnap => {
+            const uData = docSnap.data() as User;
+            if (uData && uData.uid) {
+              cloudUsers.push(uData);
+            }
+          });
+
+          if (cloudUsers.length > 0) {
+            const localUsers = getUsers();
+            const map = new Map<string, User>();
+            localUsers.forEach(u => map.set(u.uid, u));
+            cloudUsers.forEach(u => map.set(u.uid, { ...(map.get(u.uid) || {}), ...u }));
+            
+            const merged = Array.from(map.values());
+            localStorage.setItem('sent_work_users_v5', JSON.stringify(merged));
+            window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_USERS_SYNCED' } }));
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore users sync notice:', err.message);
+      });
+    } catch (e) {
+      console.warn('Firestore onSnapshot init:', e);
+    }
+
+    return () => unsubscribe();
+  }, []);
 
   // Real Login with Email/Username + Password
   const login = async (identifier: string, pass: string): Promise<{ success: boolean; error?: string }> => {
@@ -193,7 +230,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
       const email = (fbUser.email || '').toLowerCase();
-      const isAdmin = (email === 'drive.limited@gmail.com');
+      const displayName = fbUser.displayName || '';
+
+      // Auto-detect Admin rights for Krittapot or drive.limited
+      const isKrittapot = (
+        email === 'drive.limited@gmail.com' ||
+        displayName.includes('กฤตพจน์') ||
+        displayName.toLowerCase().includes('krittapot')
+      );
 
       let user = getUserByEmail(email);
 
@@ -202,30 +246,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           uid: fbUser.uid,
           email: fbUser.email || email,
           emailVerified: fbUser.emailVerified,
-          displayName: fbUser.displayName || (isAdmin ? 'กฤตพจน์ แอดมินบริหาร (Admin)' : 'ครูผู้ใช้งาน (Google)'),
-          firstName: fbUser.displayName?.split(' ')[0] || (isAdmin ? 'กฤตพจน์' : 'คุณครู'),
-          lastName: fbUser.displayName?.split(' ')[1] || (isAdmin ? 'แอดมินบริหาร' : 'ผู้สอน'),
-          role: isAdmin ? 'admin' : 'teacher',
+          displayName: displayName || (isKrittapot ? 'ม.กฤตพจน์ แก้วกา (Admin)' : 'คุณครู ' + (email.split('@')[0])),
+          firstName: displayName ? displayName.split(' ')[0] : (isKrittapot ? 'กฤตพจน์' : 'คุณครู'),
+          lastName: displayName ? displayName.split(' ').slice(1).join(' ') : (isKrittapot ? 'แก้วกา' : 'ผู้สอน'),
+          role: isKrittapot ? 'admin' : 'teacher',
           status: 'active',
-          learningAreaIds: isAdmin ? ['admin'] : ['general'],
-          learningAreaName: isAdmin ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
-          subjects: [{ name: isAdmin ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
-          gradeLevels: ['ทุกระดับชั้น'],
+          learningAreaIds: isKrittapot ? ['admin'] : ['general'],
+          learningAreaName: isKrittapot ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
+          subjects: [{ name: isKrittapot ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
+          gradeLevels: isKrittapot ? ['ทุกระดับชั้น'] : ['ม.1-ม.6'],
           photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
           authProvider: 'google',
           createdAt: new Date().toISOString(),
         };
         createUser(user);
       } else {
-        if (isAdmin && user.role !== 'admin') {
-          user = { ...user, role: 'admin' };
-          updateUser(user.uid, { role: 'admin' });
+        const updates: Partial<User> = {};
+        if (displayName && user.displayName !== displayName) {
+          updates.displayName = displayName;
         }
+        if (fbUser.photoURL && (!user.photo || user.photo.url !== fbUser.photoURL)) {
+          updates.photo = { type: 'url', url: fbUser.photoURL };
+        }
+        if (isKrittapot && user.role !== 'admin') {
+          updates.role = 'admin';
+        }
+        if (Object.keys(updates).length > 0) {
+          user = { ...user, ...updates };
+          updateUser(user.uid, updates);
+        }
+      }
+
+      // Save user to Cloud Firestore so all devices and admins see this member
+      try {
+        await setDoc(doc(db, 'users', user.uid), user, { merge: true });
+      } catch (fsErr) {
+        console.warn('Firestore user save notice:', fsErr);
       }
 
       setCurrentUser(user);
       setStoredCurrentUser(user);
       logActivity('LOGIN', 'User', user.uid, user, { method: 'google', role: user.role });
+
+      // Trigger real-time sync to Google Sheet
+      syncDataToGoogleSheets('GOOGLE_USER_LOGIN').catch(() => {});
+
       return { success: true };
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
@@ -353,6 +418,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (updated) {
       setCurrentUser(updated);
       setStoredCurrentUser(updated);
+      // Sync to Cloud Firestore as well so changes appear across all devices
+      try {
+        setDoc(doc(db, 'users', updated.uid), updated, { merge: true }).catch(err => {
+          console.warn('Failed to sync profile update to firestore:', err);
+        });
+      } catch (e) {
+        console.warn('Firestore profile update error:', e);
+      }
+      syncDataToGoogleSheets('PROFILE_UPDATE').catch(() => {});
     }
   };
 
