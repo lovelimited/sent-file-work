@@ -132,14 +132,46 @@ export function updateUser(uid: string, updates: Partial<User>, actor?: User): U
   const index = users.findIndex(u => u.uid === uid);
   if (index === -1) return null;
 
-  users[index] = { ...users[index], ...updates, updatedAt: new Date().toISOString() };
+  // Auto-compose displayName if firstName/lastName provided
+  if (updates.firstName !== undefined || updates.lastName !== undefined) {
+    const f = (updates.firstName !== undefined ? updates.firstName : users[index].firstName) || '';
+    const l = (updates.lastName !== undefined ? updates.lastName : users[index].lastName) || '';
+    if (!updates.displayName || updates.displayName === users[index].displayName) {
+      const prefix = users[index].role === 'admin' ? '' : (f.startsWith('ครู') || f.startsWith('ม.') || f.startsWith('มิส') ? '' : 'ครู');
+      updates.displayName = `${prefix}${f} ${l}`.trim();
+    }
+  }
+
+  const updatedUser: User = { ...users[index], ...updates, updatedAt: new Date().toISOString() };
+  users[index] = updatedUser;
   setItem(STORAGE_KEYS.USERS, users);
+
+  // CRITICAL: Cascade new teacherName to all submissions made by this user!
+  if (updatedUser.displayName) {
+    const submissions = getSubmissions();
+    let subChanged = false;
+    submissions.forEach(s => {
+      if (s.teacherUid === uid && s.teacherName !== updatedUser.displayName) {
+        s.teacherName = updatedUser.displayName;
+        subChanged = true;
+      }
+    });
+    if (subChanged) {
+      setItem(STORAGE_KEYS.SUBMISSIONS, submissions);
+    }
+  }
+
+  // Also update stored current user if this is the active user
+  const storedCurrent = getStoredCurrentUser();
+  if (storedCurrent && storedCurrent.uid === uid) {
+    setStoredCurrentUser(updatedUser);
+  }
 
   if (actor) {
     logActivity('UPDATE_USER', 'User', uid, actor, updates);
   }
   notifyDataChanged('UPDATE_USER');
-  return users[index];
+  return updatedUser;
 }
 
 export function createUser(user: User, actor?: User): User {

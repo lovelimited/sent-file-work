@@ -21,7 +21,8 @@ import {
   Download,
   GraduationCap,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Edit2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -34,6 +35,16 @@ export const MembersPage: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('teacher');
 
   // Auto-reload users on any mutation or cloud sync
   React.useEffect(() => {
@@ -222,6 +233,78 @@ export const MembersPage: React.FC = () => {
           confirmButtonColor: '#16a34a'
         });
       }
+    });
+  };
+
+  // Open Edit User Modal
+  const handleOpenEditModal = (u: User) => {
+    setEditingUser(u);
+    const f = u.firstName || u.displayName.split(' ')[0] || '';
+    const l = u.lastName || u.displayName.split(' ').slice(1).join(' ') || '';
+    setEditFirstName(f);
+    setEditLastName(l);
+    setEditDisplayName(u.displayName || '');
+    setEditDepartment(u.learningAreaName || 'วิทยาศาสตร์และเทคโนโลยี');
+    setEditSubject(u.subjects?.[0]?.name || 'วิชาประจำชั้น');
+    setEditPhone(u.phone || '');
+    setEditRole(u.role || 'teacher');
+  };
+
+  const handleEditFirstNameChange = (val: string) => {
+    setEditFirstName(val);
+    const prefix = editRole === 'admin' ? '' : (val.startsWith('ครู') || val.startsWith('ม.') || val.startsWith('มิส') ? '' : 'ครู');
+    setEditDisplayName(`${prefix}${val} ${editLastName}`.trim());
+  };
+
+  const handleEditLastNameChange = (val: string) => {
+    setEditLastName(val);
+    const prefix = editRole === 'admin' ? '' : (editFirstName.startsWith('ครู') || editFirstName.startsWith('ม.') || editFirstName.startsWith('มิส') ? '' : 'ครู');
+    setEditDisplayName(`${prefix}${editFirstName} ${val}`.trim());
+  };
+
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    const cleanFirst = editFirstName.trim();
+    const cleanLast = editLastName.trim();
+    const cleanDisplay = editDisplayName.trim() || `${cleanFirst} ${cleanLast}`.trim();
+
+    const updates: Partial<User> = {
+      firstName: cleanFirst,
+      lastName: cleanLast,
+      displayName: cleanDisplay,
+      learningAreaName: editDepartment,
+      subjects: [{ name: editSubject.trim() }],
+      phone: editPhone.trim(),
+      role: editRole,
+    };
+
+    updateUser(editingUser.uid, updates, currentUser || undefined);
+    reloadData();
+    const savedUser = { ...editingUser, ...updates };
+    setEditingUser(null);
+
+    // Sync to Cloud Firestore
+    try {
+      await setDoc(doc(db, 'users', editingUser.uid), savedUser, { merge: true });
+    } catch (fsErr) {
+      console.warn('Firestore update error:', fsErr);
+    }
+
+    // Sync to Google Sheets
+    await syncDataToGoogleSheets('ADMIN_UPDATE_USER');
+
+    Swal.fire({
+      title: 'แก้ไขข้อมูลสำเร็จ!',
+      html: `
+        <div class="text-left text-xs space-y-1.5 text-slate-700">
+          <p><strong>ชื่อ-นามสกุล:</strong> ${cleanFirst} ${cleanLast}</p>
+          <p><strong>ชื่อที่แสดงในระบบ:</strong> <span class="text-blue-700 font-bold">${cleanDisplay}</span></p>
+          <p class="text-emerald-600 font-semibold">✓ บันทึกข้อมูลและซิงค์ตาราง Google Sheets เรียบร้อยแล้ว</p>
+        </div>
+      `,
+      icon: 'success',
+      confirmButtonColor: '#2563eb'
     });
   };
 
@@ -545,6 +628,16 @@ export const MembersPage: React.FC = () => {
 
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Edit Member Button */}
+                          <button
+                            onClick={() => handleOpenEditModal(u)}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer inline-flex items-center gap-1"
+                            title="แก้ไขชื่อ-นามสกุล และข้อมูลสมาชิก"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>แก้ไข</span>
+                          </button>
+
                           {/* Toggle Active/Disabled */}
                           {!isCurrent && (
                             <button
@@ -685,6 +778,146 @@ export const MembersPage: React.FC = () => {
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md transition-all"
                 >
                   เพิ่มสมาชิก
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+                  ✎
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">แก้ไขข้อมูลสมาชิก</h3>
+                  <p className="text-[11px] text-slate-500">{editingUser.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    ชื่อจริง <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => handleEditFirstNameChange(e.target.value)}
+                    placeholder="เช่น กฤตพจน์"
+                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    นามสกุล <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => handleEditLastNameChange(e.target.value)}
+                    placeholder="เช่น แก้วกา"
+                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชื่อที่แสดงในระบบ (Display Name) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  placeholder="เช่น ม.กฤตพจน์ แก้วกา"
+                  className="w-full text-xs font-medium rounded-xl border border-blue-200 bg-blue-50/40 p-2.5 text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  required
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  💡 ชื่อนี้จะแสดงในแดชบอร์ด รายการส่งงาน และเป็นชื่อโฟลเดอร์ของผู้ส่งใน Google Drive
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">กลุ่มสาระการเรียนรู้</label>
+                <select
+                  value={editDepartment}
+                  onChange={(e) => setEditDepartment(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="วิทยาศาสตร์และเทคโนโลยี">วิทยาศาสตร์และเทคโนโลยี</option>
+                  <option value="คณิตศาสตร์">คณิตศาสตร์</option>
+                  <option value="ภาษาไทย">ภาษาไทย</option>
+                  <option value="ภาษาต่างประเทศ">ภาษาต่างประเทศ</option>
+                  <option value="สังคมศึกษา ศาสนา และวัฒนธรรม">สังคมศึกษา ศาสนา และวัฒนธรรม</option>
+                  <option value="สุขศึกษาและพลศึกษา">สุขศึกษาและพลศึกษา</option>
+                  <option value="ศิลปะ">ศิลปะ</option>
+                  <option value="การงานอาชีพ">การงานอาชีพ</option>
+                  <option value="กิจกรรมพัฒนาผู้เรียน / ทั่วไป">กิจกรรมพัฒนาผู้เรียน / ทั่วไป</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">วิชาที่สอน</label>
+                  <input
+                    type="text"
+                    value={editSubject}
+                    onChange={(e) => setEditSubject(e.target.value)}
+                    placeholder="เช่น วิทยาการคำนวณ"
+                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">บทบาท (Role)</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as UserRole)}
+                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="teacher">คุณครูผู้สอน (Teacher)</option>
+                    <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="เช่น 081-234-5678"
+                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5"
+                >
+                  บันทึกการแก้ไข
                 </button>
               </div>
             </form>

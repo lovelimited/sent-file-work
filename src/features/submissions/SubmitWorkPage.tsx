@@ -350,7 +350,7 @@ export const SubmitWorkPage: React.FC = () => {
             <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
               <p>กำลังส่งไฟล์เอกสารเข้าสู่โฟลเดอร์ Google Drive ของสถาบัน...</p>
               <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 font-mono text-[11px]">
-                📁 Google Drive / ${selectedTopic.title} /
+                📁 Google Drive / ${selectedTopic.title} / ${currentUser.displayName} /
               </div>
               <p class="text-slate-400 text-[10px]">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
             </div>
@@ -379,6 +379,8 @@ export const SubmitWorkPage: React.FC = () => {
               downloadUrl: up?.downloadUrl || up?.fileUrl || '#',
               driveFileId: up?.fileId,
               driveUrl: up?.fileUrl,
+              folderName: currentUser.displayName,
+              folderPath: `Google Drive / ${selectedTopic.title} / ${currentUser.displayName} /`,
               subTaskId: f.subTaskId,
               subTaskTitle: f.subTaskTitle
             };

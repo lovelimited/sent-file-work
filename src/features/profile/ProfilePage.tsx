@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { User as UserIcon, Save, Mail, Shield, CheckCircle2 } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -13,18 +13,56 @@ export const ProfilePage: React.FC = () => {
   const [subjectName, setSubjectName] = useState(currentUser?.subjects?.[0]?.name || 'วิทยาการคำนวณ');
   const [learningAreaName, setLearningAreaName] = useState(currentUser?.learningAreaName || 'วิทยาศาสตร์และเทคโนโลยี');
 
+  useEffect(() => {
+    if (currentUser) {
+      setDisplayName(currentUser.displayName || '');
+      setFirstName(currentUser.firstName || '');
+      setLastName(currentUser.lastName || '');
+      setPhone(currentUser.phone || '');
+      setSubjectName(currentUser.subjects?.[0]?.name || 'วิทยาการคำนวณ');
+      setLearningAreaName(currentUser.learningAreaName || 'วิทยาศาสตร์และเทคโนโลยี');
+    }
+  }, [currentUser]);
+
+  const handleFirstNameChange = (val: string) => {
+    setFirstName(val);
+    const prefix = currentUser?.role === 'admin' ? '' : (val.startsWith('ครู') || val.startsWith('ม.') || val.startsWith('มิส') ? '' : 'ครู');
+    setDisplayName(`${prefix}${val} ${lastName}`.trim());
+  };
+
+  const handleLastNameChange = (val: string) => {
+    setLastName(val);
+    const prefix = currentUser?.role === 'admin' ? '' : (firstName.startsWith('ครู') || firstName.startsWith('ม.') || firstName.startsWith('มิส') ? '' : 'ครู');
+    setDisplayName(`${prefix}${firstName} ${val}`.trim());
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
+    const cleanDisplay = displayName.trim() || `${cleanFirst} ${cleanLast}`.trim();
+
     updateCurrentUserProfile({
-      displayName: displayName.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      displayName: cleanDisplay,
+      firstName: cleanFirst,
+      lastName: cleanLast,
       phone: phone.trim(),
       learningAreaName,
       subjects: [{ name: subjectName.trim() }],
     });
 
-    Swal.fire('บันทึกข้อมูลส่วนตัวเรียบร้อย', 'ข้อมูลโปรไฟล์และกลุ่มสาระของคุณได้รับการอัปเดตแล้ว', 'success');
+    Swal.fire({
+      title: 'บันทึกข้อมูลส่วนตัวเรียบร้อย',
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-700">
+          <p><strong>ชื่อ-นามสกุล:</strong> ${cleanFirst} ${cleanLast}</p>
+          <p><strong>ชื่อที่แสดงในระบบ:</strong> <span class="text-blue-700 font-bold">${cleanDisplay}</span></p>
+          <p class="text-emerald-600 font-semibold">✓ อัปเดตข้อมูลในระบบและ Google Sheets เรียบร้อยแล้ว</p>
+        </div>
+      `,
+      icon: 'success',
+      confirmButtonColor: '#2563eb'
+    });
   };
 
   return (
@@ -72,7 +110,7 @@ export const ProfilePage: React.FC = () => {
               <input
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => handleFirstNameChange(e.target.value)}
                 className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800"
                 required
               />
@@ -82,7 +120,7 @@ export const ProfilePage: React.FC = () => {
               <input
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => handleLastNameChange(e.target.value)}
                 className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800"
                 required
               />

@@ -74,8 +74,9 @@ function handleFileUpload(data) {
   
   // Optional: create or get subfolder for teacher
   let targetFolder = topicFolder;
-  if (data.createTeacherFolder && data.teacherName) {
-    targetFolder = getOrCreateFolder(topicFolder, data.teacherName.trim());
+  const teacherName = (data.teacherName || "").trim();
+  if (teacherName) {
+    targetFolder = getOrCreateFolder(topicFolder, teacherName);
   }
 
   // Construct final file name
@@ -124,8 +125,9 @@ function handleBatchFilesUpload(data) {
   const topicFolder = getOrCreateFolder(rootFolder, topicTitle);
 
   let targetFolder = topicFolder;
-  if (data.createTeacherFolder && data.teacherName) {
-    targetFolder = getOrCreateFolder(topicFolder, data.teacherName.trim());
+  const teacherName = (data.teacherName || "").trim();
+  if (teacherName) {
+    targetFolder = getOrCreateFolder(topicFolder, teacherName);
   }
 
   const uploadedFiles = [];

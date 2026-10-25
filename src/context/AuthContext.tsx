@@ -86,10 +86,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const localUsers = getUsers();
             const map = new Map<string, User>();
             localUsers.forEach(u => map.set(u.uid, u));
-            cloudUsers.forEach(u => map.set(u.uid, { ...(map.get(u.uid) || {}), ...u }));
+            
+            cloudUsers.forEach(cu => {
+              const lu = map.get(cu.uid);
+              if (!lu) {
+                map.set(cu.uid, cu);
+              } else {
+                const luTime = lu.updatedAt ? new Date(lu.updatedAt).getTime() : 0;
+                const cuTime = cu.updatedAt ? new Date(cu.updatedAt).getTime() : 0;
+                if (cuTime >= luTime) {
+                  map.set(cu.uid, { ...lu, ...cu });
+                } else {
+                  // Local is newer! Keep local and update Firestore
+                  setDoc(doc(db, 'users', lu.uid), lu, { merge: true }).catch(() => {});
+                }
+              }
+            });
             
             const merged = Array.from(map.values());
             localStorage.setItem('sent_work_users_v5', JSON.stringify(merged));
+            
+            // If active user was updated, update state
+            if (currentUser && map.has(currentUser.uid)) {
+              const freshCurrent = map.get(currentUser.uid)!;
+              if (freshCurrent.displayName !== currentUser.displayName || freshCurrent.updatedAt !== currentUser.updatedAt) {
+                setCurrentUser(freshCurrent);
+                setStoredCurrentUser(freshCurrent);
+              }
+            }
+
             window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_USERS_SYNCED' } }));
           }
         }
@@ -101,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   // Real Login with Email/Username + Password
   const login = async (identifier: string, pass: string): Promise<{ success: boolean; error?: string }> => {
@@ -262,7 +287,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createUser(user);
       } else {
         const updates: Partial<User> = {};
-        if (displayName && user.displayName !== displayName) {
+        const isDefaultPlaceholder = !user.displayName || user.displayName.startsWith('คุณครู ') || user.displayName === email.split('@')[0];
+        if (displayName && isDefaultPlaceholder) {
           updates.displayName = displayName;
         }
         if (fbUser.photoURL && (!user.photo || user.photo.url !== fbUser.photoURL)) {
@@ -277,16 +303,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      const finalUser: User = user;
+
       // Save user to Cloud Firestore so all devices and admins see this member
       try {
-        await setDoc(doc(db, 'users', user.uid), user, { merge: true });
+        await setDoc(doc(db, 'users', finalUser.uid), finalUser, { merge: true });
       } catch (fsErr) {
         console.warn('Firestore user save notice:', fsErr);
       }
 
-      setCurrentUser(user);
-      setStoredCurrentUser(user);
-      logActivity('LOGIN', 'User', user.uid, user, { method: 'google', role: user.role });
+      setCurrentUser(finalUser);
+      setStoredCurrentUser(finalUser);
+      logActivity('LOGIN', 'User', finalUser.uid, finalUser, { method: 'google', role: finalUser.role });
 
       // Trigger real-time sync to Google Sheet
       syncDataToGoogleSheets('GOOGLE_USER_LOGIN').catch(() => {});

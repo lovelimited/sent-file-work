@@ -86,7 +86,7 @@ export async function uploadFilesToGoogleDrive(params: {
       folderId,
       topicTitle: params.topicTitle,
       teacherName: params.teacherName,
-      createTeacherFolder: false, // Keep clean topic folders
+      createTeacherFolder: true, // Always organize files by teacher subfolders inside topic folder
       files: preparedFiles
     };
 
