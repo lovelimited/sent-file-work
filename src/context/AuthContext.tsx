@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, SubmissionTopic, Submission } from '../types';
 import { 
   getStoredCurrentUser, 
   setStoredCurrentUser, 
@@ -8,6 +8,8 @@ import {
   getUsers, 
   updateUser, 
   createUser,
+  getSubmissionTopics,
+  getSubmissions,
   logActivity 
 } from '../lib/storage';
 import { auth, googleProvider, db } from '../lib/firebase';
@@ -68,11 +70,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  // Synchronize users from Cloud Firestore across all devices in real time
+  // Synchronize users, topics, and submissions from Cloud Firestore across all devices in real time
   useEffect(() => {
-    let unsubscribe = () => {};
+    let unsubscribeUsers = () => {};
+    let unsubscribeTopics = () => {};
+    let unsubscribeSubmissions = () => {};
+
     try {
-      unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      // 1. Sync Users
+      unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         if (!snapshot.empty) {
           const cloudUsers: User[] = [];
           snapshot.forEach(docSnap => {
@@ -121,11 +127,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, (err) => {
         console.warn('Firestore users sync notice:', err.message);
       });
+
+      // 2. Sync Topics (หัวข้อเรื่องที่แอดมินสร้าง)
+      unsubscribeTopics = onSnapshot(collection(db, 'topics'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudTopics: SubmissionTopic[] = [];
+          snapshot.forEach(docSnap => {
+            const tData = docSnap.data() as SubmissionTopic;
+            if (tData && tData.id) {
+              cloudTopics.push(tData);
+            }
+          });
+          if (cloudTopics.length > 0) {
+            cloudTopics.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            localStorage.setItem('sent_work_submission_topics_v5', JSON.stringify(cloudTopics));
+            window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_TOPICS_SYNCED' } }));
+          }
+        } else {
+          // If Cloud Firestore 'topics' is empty, upload existing local topics so they are preserved
+          const localTopics = getSubmissionTopics();
+          if (localTopics.length > 0) {
+            localTopics.forEach(t => {
+              setDoc(doc(db, 'topics', t.id), t, { merge: true }).catch(() => {});
+            });
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore topics sync notice:', err.message);
+      });
+
+      // 3. Sync Submissions (รายการส่งงานของครู)
+      unsubscribeSubmissions = onSnapshot(collection(db, 'submissions'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudSubs: Submission[] = [];
+          snapshot.forEach(docSnap => {
+            const sData = docSnap.data() as Submission;
+            if (sData && sData.id) {
+              cloudSubs.push(sData);
+            }
+          });
+          if (cloudSubs.length > 0) {
+            cloudSubs.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+            localStorage.setItem('sent_work_submissions_v5', JSON.stringify(cloudSubs));
+            window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_SUBMISSIONS_SYNCED' } }));
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore submissions sync notice:', err.message);
+      });
+
     } catch (e) {
       console.warn('Firestore onSnapshot init:', e);
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeUsers();
+      unsubscribeTopics();
+      unsubscribeSubmissions();
+    };
   }, [currentUser]);
 
   // Real Login with Email/Username + Password

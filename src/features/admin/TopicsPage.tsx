@@ -6,6 +6,8 @@ import {
   deleteSubmissionTopic,
   getSubmissions 
 } from '../../lib/storage';
+import { initTopicFoldersInGoogleDrive } from '../../lib/googleDriveService';
+import { triggerAutoSyncToGoogleSheets } from '../../lib/googleSheetsSync';
 import { SubmissionTopic, TopicSubTask } from '../../types';
 import { 
   FolderPlus, 
@@ -191,6 +193,10 @@ export const TopicsPage: React.FC = () => {
     reloadTopics();
     setIsModalOpen(false);
 
+    // Auto-create topic folder in Google Drive and sync Google Sheets
+    initTopicFoldersInGoogleDrive([{ title: topicItem.title }]).catch(() => {});
+    triggerAutoSyncToGoogleSheets(editingTopic ? 'ADMIN_UPDATE_TOPIC' : 'ADMIN_CREATE_TOPIC');
+
     Swal.fire({
       title: editingTopic ? 'อัปเดตหัวข้อเรื่องสำเร็จ' : 'สร้างหัวข้อส่งงานใหม่สำเร็จ!',
       text: `คุณครูสามารถส่งผลงานในหัวข้อ "${topicItem.title}" ได้ตามกำหนดส่ง`,
@@ -219,6 +225,7 @@ export const TopicsPage: React.FC = () => {
       if (result.isConfirmed && currentUser) {
         deleteSubmissionTopic(topic.id, currentUser);
         reloadTopics();
+        triggerAutoSyncToGoogleSheets('ADMIN_DELETE_TOPIC');
         Swal.fire('ลบหัวข้อเรื่องเรียบร้อย', '', 'success');
       }
     });
@@ -232,6 +239,7 @@ export const TopicsPage: React.FC = () => {
     };
     saveSubmissionTopic(updated, currentUser);
     reloadTopics();
+    triggerAutoSyncToGoogleSheets('ADMIN_TOGGLE_TOPIC_STATUS');
   };
 
   const getRemainingDaysText = (dueIso: string) => {

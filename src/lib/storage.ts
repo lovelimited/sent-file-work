@@ -16,6 +16,8 @@ import {
   UserRole,
   SubmissionStatus
 } from '../types';
+import { db } from './firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 import {
   initialUsers,
@@ -216,6 +218,68 @@ export function deleteUser(uid: string, actor?: User): boolean {
   return true;
 }
 
+export function hasDemoSubmissions(): boolean {
+  const submissions = getSubmissions();
+  return submissions.some(s => 
+    s.id.startsWith('sub-2026-') ||
+    s.teacherUid.startsWith('teacher-') ||
+    (s.teacherEmail && s.teacherEmail.endsWith('@school.ac.th')) ||
+    s.teacherName.includes('ครูสมศรี') ||
+    s.teacherName.includes('ครูสมชาย') ||
+    s.teacherName.includes('ครูอภิสิทธิ์') ||
+    s.teacherName.includes('ครูมานะ') ||
+    s.teacherName.includes('ครูสุดา')
+  );
+}
+
+export function deleteDemoSubmissions(actor?: User): { count: number; ids: string[] } {
+  const submissions = getSubmissions();
+  const demoSubs = submissions.filter(s => 
+    s.id.startsWith('sub-2026-') ||
+    s.teacherUid.startsWith('teacher-') ||
+    (s.teacherEmail && s.teacherEmail.endsWith('@school.ac.th')) ||
+    s.teacherName.includes('ครูสมศรี') ||
+    s.teacherName.includes('ครูสมชาย') ||
+    s.teacherName.includes('ครูอภิสิทธิ์') ||
+    s.teacherName.includes('ครูมานะ') ||
+    s.teacherName.includes('ครูสุดา')
+  );
+
+  const demoSubIds = new Set(demoSubs.map(s => s.id));
+  const remainingSubmissions = submissions.filter(s => !demoSubIds.has(s.id));
+  setItem(STORAGE_KEYS.SUBMISSIONS, remainingSubmissions);
+
+  // Clean versions & reviews for these submissions
+  const allVersions = getItem<Record<string, SubmissionVersion[]>>(STORAGE_KEYS.VERSIONS, initialVersions);
+  demoSubIds.forEach(id => {
+    delete allVersions[id];
+  });
+  setItem(STORAGE_KEYS.VERSIONS, allVersions);
+
+  const allReviews = getItem<Record<string, ReviewRecord[]>>(STORAGE_KEYS.REVIEWS, initialReviews);
+  demoSubIds.forEach(id => {
+    delete allReviews[id];
+  });
+  setItem(STORAGE_KEYS.REVIEWS, allReviews);
+
+  // Delete from Cloud Firestore if any exists
+  demoSubIds.forEach(id => {
+    try {
+      deleteDoc(doc(db, 'submissions', id)).catch(() => {});
+    } catch (e) {}
+  });
+
+  if (actor) {
+    logActivity('DELETE_DEMO_SUBMISSIONS', 'Submission', 'batch', actor, {
+      count: demoSubs.length,
+      purgedIds: Array.from(demoSubIds)
+    });
+  }
+
+  notifyDataChanged('DEMO_SUBMISSIONS_DELETED');
+  return { count: demoSubs.length, ids: Array.from(demoSubIds) };
+}
+
 export function deleteDemoTeachers(actor?: User): { count: number; names: string[] } {
   const users = getUsers();
   // Demo teachers are teacher accounts with mock IDs or names
@@ -235,10 +299,8 @@ export function deleteDemoTeachers(actor?: User): { count: number; names: string
   const remainingUsers = users.filter(u => !demoUids.has(u.uid));
   setItem(STORAGE_KEYS.USERS, remainingUsers);
 
-  // Clean demo submissions
-  const submissions = getSubmissions();
-  const remainingSubmissions = submissions.filter(s => !demoUids.has(s.teacherUid));
-  setItem(STORAGE_KEYS.SUBMISSIONS, remainingSubmissions);
+  // Clean demo submissions completely
+  deleteDemoSubmissions(actor);
 
   if (actor) {
     logActivity('DELETE_DEMO_TEACHERS', 'User', 'batch', actor, {
@@ -371,6 +433,16 @@ export function createSubmission(
     });
   });
 
+  // Sync to Cloud Firestore
+  try {
+    setDoc(doc(db, 'submissions', newId), newSubmission, { merge: true }).catch(err => {
+      console.warn('Failed to save submission to Firestore:', err);
+    });
+    setDoc(doc(db, 'versions', newVersion.id), newVersion, { merge: true }).catch(() => {});
+  } catch (e) {
+    console.warn('Firestore submission save error:', e);
+  }
+
   logActivity('SUBMIT_WORK', 'Submission', newId, actor, {
     title: newSubmission.title,
     versionNumber: 1,
@@ -452,6 +524,12 @@ export function addSubmissionVersion(
       link: `/submissions/${submissionId}`
     });
   });
+
+  // Sync to Cloud Firestore
+  try {
+    setDoc(doc(db, 'submissions', submissionId), submissions[subIndex], { merge: true }).catch(() => {});
+    setDoc(doc(db, 'versions', newVersion.id), newVersion, { merge: true }).catch(() => {});
+  } catch (e) {}
 
   logActivity('SUBMIT_NEW_VERSION', 'Submission', submissionId, actor, {
     versionNumber: newVersionNumber,
@@ -535,6 +613,12 @@ export function submitAdminReview(
     link: `/submissions/${submissionId}`
   });
 
+  // Sync to Cloud Firestore
+  try {
+    setDoc(doc(db, 'submissions', submissionId), submissions[subIndex], { merge: true }).catch(() => {});
+    setDoc(doc(db, 'reviews', newReview.id), newReview, { merge: true }).catch(() => {});
+  } catch (e) {}
+
   logActivity('SUBMIT_REVIEW', 'ReviewRecord', newReview.id, actor, {
     submissionId,
     decision,
@@ -581,6 +665,16 @@ export function saveSubmissionTopic(item: SubmissionTopic, actor: User): Submiss
     list.unshift(item);
   }
   setItem(STORAGE_KEYS.TOPICS, list);
+
+  // Sync to Cloud Firestore so topics are instantly accessible across all computers and devices
+  try {
+    setDoc(doc(db, 'topics', item.id), item, { merge: true }).catch(err => {
+      console.warn('Failed to save topic to Firestore:', err);
+    });
+  } catch (e) {
+    console.warn('Firestore topic save error:', e);
+  }
+
   logActivity('SAVE_SUBMISSION_TOPIC', 'SubmissionTopic', item.id, actor, { title: item.title, dueDate: item.dueDate });
   notifyDataChanged('TOPIC_SAVED');
   return item;
@@ -590,6 +684,16 @@ export function deleteSubmissionTopic(id: string, actor: User): boolean {
   let list = getSubmissionTopics();
   list = list.filter(i => i.id !== id);
   setItem(STORAGE_KEYS.TOPICS, list);
+
+  // Delete from Cloud Firestore
+  try {
+    deleteDoc(doc(db, 'topics', id)).catch(err => {
+      console.warn('Failed to delete topic from Firestore:', err);
+    });
+  } catch (e) {
+    console.warn('Firestore topic delete error:', e);
+  }
+
   logActivity('DELETE_SUBMISSION_TOPIC', 'SubmissionTopic', id, actor);
   notifyDataChanged('TOPIC_DELETED');
   return true;

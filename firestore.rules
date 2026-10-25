@@ -71,6 +71,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Topics (หัวข้อเรื่องที่แอดมินสร้าง)
+    match /topics/{topicId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /versions/{versionId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Submission Types and Rounds
     match /submissionTypes/{typeId} {
       allow read: if isAuthenticated();
