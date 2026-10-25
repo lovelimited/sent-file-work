@@ -335,9 +335,9 @@ export const MembersPage: React.FC = () => {
       </div>
 
       {/* KPI Stats Cards (คิดแยกครูผู้สอน กับ Admin ชัดเจน) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Teachers Count */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">จำนวนครูผู้สอนในระบบ</span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -346,7 +346,7 @@ export const MembersPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-1.5 mt-2">
             <p className="text-2xl font-bold text-slate-900">{teachers.length}</p>
-            <span className="text-xs text-slate-500">ท่าน</span>
+            <span className="text-xs text-slate-500 font-medium">ท่าน</span>
           </div>
           <p className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-1">
             ✓ คิดแยก ไม่รวม Admin
@@ -354,7 +354,7 @@ export const MembersPage: React.FC = () => {
         </div>
 
         {/* Card 2: Admins Count */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">ผู้ดูแลระบบ & ฝ่ายตรวจ</span>
             <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -363,7 +363,7 @@ export const MembersPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-1.5 mt-2">
             <p className="text-2xl font-bold text-purple-700">{admins.length}</p>
-            <span className="text-xs text-slate-500">ท่าน</span>
+            <span className="text-xs text-slate-500 font-medium">ท่าน</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
             สิทธิ์ตรวจประเมิน & จัดการระบบ
@@ -371,44 +371,19 @@ export const MembersPage: React.FC = () => {
         </div>
 
         {/* Card 3: Total Users */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">รวมผู้ใช้งานทั้งหมด</span>
+            <span className="text-xs font-semibold text-slate-500">รวมผู้ใช้งานทั้งหมดในระบบ</span>
             <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5 mt-2">
             <p className="text-2xl font-bold text-slate-800">{users.length}</p>
-            <span className="text-xs text-slate-500">บัญชี</span>
+            <span className="text-xs text-slate-500 font-medium">บัญชี</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            ครู {teachers.length} + แอดมิน {admins.length}
-          </p>
-        </div>
-
-        {/* Card 4: Demo Accounts Status */}
-        <div className={`p-4 rounded-2xl border shadow-sm ${
-          demoTeachers.length > 0 
-            ? 'bg-amber-50/60 border-amber-200' 
-            : 'bg-emerald-50/60 border-emerald-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-700">บัญชีครู Demo</span>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-              demoTeachers.length > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-1.5 mt-2">
-            <p className={`text-2xl font-bold ${demoTeachers.length > 0 ? 'text-amber-800' : 'text-emerald-700'}`}>
-              {demoTeachers.length}
-            </p>
-            <span className="text-xs text-slate-500">บัญชี</span>
-          </div>
-          <p className="text-[11px] text-slate-600 mt-1">
-            {demoTeachers.length > 0 ? 'กดปุ่มลบด้านบนเพื่อเคลียร์' : '✓ เป็นบัญชีครูจริงทั้งหมด'}
+            ครู {teachers.length} + แอดมิน {admins.length} ท่าน
           </p>
         </div>
       </div>
