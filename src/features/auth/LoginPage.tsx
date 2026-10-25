@@ -14,7 +14,9 @@ import {
   ArrowRight, 
   Check,
   ShieldCheck,
-  Orbit
+  Orbit,
+  FileCheck2,
+  TableProperties
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -118,9 +120,9 @@ export const LoginPage: React.FC = () => {
         Swal.fire({
           title: 'ยังไม่ได้เปิดใช้งาน Google Provider',
           html: `
-            <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #334155;">
+            <div style="text-align: left; font-size: 14px; line-height: 1.6; color: #334155;">
               <p style="margin-bottom: 8px;">สาเหตุ: บัญชี Firebase โครงการ <b>send-file-51069</b> ยังไม่ได้กดเปิดสวิตช์ <b>Google Sign-in</b> ใน Firebase Console</p>
-              <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; color: #92400e;">
+              <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; color: #92400e;">
                 <b style="display: block; margin-bottom: 4px;">วิธีเปิดใช้งาน (ทำเพียงครั้งเดียว):</b>
                 <ol style="padding-left: 20px; margin: 0;">
                   <li>ไปที่ลิงก์ <a href="https://console.firebase.google.com/project/send-file-51069/authentication/providers" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold;">Firebase Console &gt; Sign-in method</a></li>
@@ -129,7 +131,7 @@ export const LoginPage: React.FC = () => {
                   <li>เลือกอีเมล Support (drive.limited@gmail.com) แล้วกด <b>Save</b></li>
                 </ol>
               </div>
-              <p style="font-size: 11px; color: #64748b; margin: 0;">* สามารถเข้าสู่ระบบด้วยอีเมล <b>drive.limited@gmail.com</b> และรหัสผ่าน <b>krittapot001</b> ได้ทันทีครับ</p>
+              <p style="font-size: 12px; color: #64748b; margin: 0;">* สามารถเข้าสู่ระบบด้วยอีเมล <b>drive.limited@gmail.com</b> และรหัสผ่าน <b>krittapot001</b> ได้ทันทีครับ</p>
             </div>
           `,
           icon: 'info',
@@ -256,7 +258,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between items-center p-3 sm:p-5 overflow-x-hidden font-sans select-none bg-slate-50">
+    <div className="relative min-h-screen w-full flex flex-col justify-between items-center px-4 py-4 sm:py-6 overflow-x-hidden font-sans select-none bg-slate-50">
       
       {/* ======================================================== */}
       {/* 3D LIGHT SPACE CELESTIAL BACKGROUND                     */}
@@ -267,188 +269,222 @@ export const LoginPage: React.FC = () => {
       />
       
       {/* Soft Luminous Celestial Tint */}
-      <div className="fixed inset-0 bg-gradient-to-tr from-sky-100/70 via-white/60 to-indigo-100/70 backdrop-blur-[2px] pointer-events-none" />
+      <div className="fixed inset-0 bg-gradient-to-tr from-sky-100/65 via-white/55 to-indigo-100/65 backdrop-blur-[2px] pointer-events-none" />
 
-      {/* Ambient Floating 3D Sparkles */}
-      <div className="fixed top-6 left-6 text-sky-400 text-xl animate-space-twinkle pointer-events-none">✦</div>
-      <div className="fixed top-8 right-8 text-amber-400 text-lg animate-space-twinkle [animation-delay:1s] pointer-events-none">✧</div>
-      <div className="fixed bottom-8 left-8 text-indigo-400 text-xl animate-space-twinkle [animation-delay:1.5s] pointer-events-none">✦</div>
-      <div className="fixed bottom-10 right-10 text-pink-400 text-lg animate-space-twinkle [animation-delay:0.7s] pointer-events-none">✧</div>
+      {/* Floating 3D Celestial Sparkles */}
+      <div className="fixed top-8 left-10 text-sky-400 text-2xl animate-space-twinkle pointer-events-none">✦</div>
+      <div className="fixed top-12 right-14 text-amber-400 text-xl animate-space-twinkle [animation-delay:1s] pointer-events-none">✧</div>
+      <div className="fixed bottom-12 left-12 text-indigo-400 text-2xl animate-space-twinkle [animation-delay:1.5s] pointer-events-none">✦</div>
+      <div className="fixed bottom-14 right-16 text-pink-400 text-xl animate-space-twinkle [animation-delay:0.7s] pointer-events-none">✧</div>
 
       {/* Ambient Glow Orbs */}
-      <div className="fixed -top-24 -left-24 w-80 h-80 bg-sky-300/20 rounded-full blur-[90px] pointer-events-none" />
-      <div className="fixed -bottom-24 -right-24 w-80 h-80 bg-purple-300/20 rounded-full blur-[90px] pointer-events-none" />
+      <div className="fixed -top-24 -left-24 w-96 h-96 bg-sky-300/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="fixed -bottom-24 -right-24 w-96 h-96 bg-purple-300/20 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Top breathing spacer */}
-      <div className="h-0.5 sm:h-2" />
+      {/* Spacer */}
+      <div className="h-1" />
 
       {/* ======================================================== */}
-      {/* AIRY, SPACIOUS, BEAUTIFULLY PROPORTIONED CARD           */}
+      {/* MAIN DUAL-PANEL CARD: FULL-SIZED, BOLD, AND WELL SPACED  */}
       {/* ======================================================== */}
-      <div className="relative z-20 w-full max-w-2xl my-auto bg-white/95 backdrop-blur-2xl border border-white/90 shadow-[0_20px_60px_-15px_rgba(30,58,138,0.16)] rounded-2xl sm:rounded-3xl overflow-hidden flex flex-col sm:flex-row transition-all">
+      <div className="relative z-20 w-full max-w-4xl my-auto bg-white/95 backdrop-blur-2xl border border-white/90 shadow-[0_20px_60px_-15px_rgba(30,58,138,0.18)] rounded-3xl overflow-hidden flex flex-col md:flex-row transition-all">
         
         {/* ---------------------------------------------------- */}
-        {/* LEFT COLUMN: School Identity & 3D Mascot Showcase    */}
+        {/* LEFT PANEL: Identity, Mascot, and Branding           */}
         {/* ---------------------------------------------------- */}
-        <div className="sm:w-5/12 bg-gradient-to-br from-sky-50/90 via-indigo-50/70 to-blue-50/80 p-4 sm:p-5 flex flex-col justify-between border-b sm:border-b-0 sm:border-r border-slate-200/70">
+        <div className="md:w-5/12 bg-gradient-to-br from-sky-50/90 via-indigo-50/70 to-blue-50/80 p-5 sm:p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-200/80">
           
-          <div>
-            {/* Top Avatars: School Logo + 3D Astronaut Mascot */}
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-slate-200/80 p-0.5 flex items-center justify-center flex-shrink-0">
+          <div className="space-y-3">
+            {/* Top Avatars: School Logo + 3D Mascot */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1 flex items-center justify-center flex-shrink-0">
                 <img 
                   src="/logo.jpg" 
                   alt="School Logo" 
                   className="w-full h-full object-contain" 
                 />
               </div>
-              <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-slate-200/80 p-0.5 flex items-center justify-center flex-shrink-0 animate-space-float">
+              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1 flex items-center justify-center flex-shrink-0 animate-space-float">
                 <img 
                   src="/astronaut-3d.jpg" 
-                  alt="3D Astronaut Mascot" 
-                  className="w-full h-full object-cover rounded-lg" 
+                  alt="3D Space Mascot" 
+                  className="w-full h-full object-cover rounded-xl" 
                 />
               </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[10px] font-extrabold ml-auto">
-                <Sparkles className="w-2.5 h-2.5 text-blue-600" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[11px] font-black ml-auto shadow-2xs">
+                <Sparkles className="w-3 h-3 text-blue-600" />
                 3D Space
               </span>
             </div>
 
-            <h1 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-tight">
-              {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'}
-            </h1>
-            <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-snug">
-              ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารวิชาการ
-            </p>
+            <div>
+              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug">
+                {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'}
+              </h1>
+              <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารวิชาการ
+              </p>
+            </div>
 
-            <div className="mt-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/80 border border-slate-200/80 text-[10px] font-bold text-slate-600 shadow-2xs">
-              <Orbit className="w-3 h-3 text-sky-600" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 border border-slate-200/80 text-xs font-bold text-slate-700 shadow-2xs">
+              <Orbit className="w-3.5 h-3.5 text-sky-600" />
               <span>ปีการศึกษา {settings.academicYear} / {settings.semester}</span>
+            </div>
+
+            {/* Feature Highlights */}
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-700 shadow-2xs">
+                <FileCheck2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                <span>ส่งงาน แผนการสอน และประเมินผล</span>
+              </div>
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-700 shadow-2xs">
+                <TableProperties className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span>Google Sheets Sync อัตโนมัติ</span>
+              </div>
             </div>
           </div>
 
           {/* Developer Credit Signature */}
-          <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-[10px] shadow-xs flex-shrink-0">
+          <div className="pt-2.5 mt-2 border-t border-slate-200/80 flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-xs flex-shrink-0">
               ก
             </div>
             <div className="text-left overflow-hidden">
-              <p className="text-[8px] text-slate-400 font-bold uppercase leading-none">ออกแบบและพัฒนาโดย</p>
-              <p className="text-[11px] font-black text-slate-800 truncate leading-tight mt-0.5">ม.กฤตพจน์  แก้วกา</p>
+              <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">ออกแบบและพัฒนาระบบโดย</p>
+              <p className="text-xs sm:text-sm font-black text-slate-800 truncate leading-tight mt-0.5">ม.กฤตพจน์  แก้วกา</p>
             </div>
           </div>
 
         </div>
 
         {/* ---------------------------------------------------- */}
-        {/* RIGHT COLUMN: Clean, Spacious, Fast Login Form       */}
+        {/* RIGHT PANEL: Spacious, Full-Sized Form Area         */}
         {/* ---------------------------------------------------- */}
-        <div className="sm:w-7/12 p-4 sm:p-5 flex flex-col justify-between bg-white">
+        <div className="md:w-7/12 p-5 sm:p-6 flex flex-col justify-between bg-white">
           
-          {/* Segmented Tab Bar */}
-          <div className="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/80 mb-3">
-            <button
-              id="tab-btn-login"
-              type="button"
-              onClick={() => setActiveTab('login')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'login'
-                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              เข้าสู่ระบบ (Sign In)
-            </button>
-            <button
-              id="tab-btn-register"
-              type="button"
-              onClick={() => setActiveTab('register')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'register'
-                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              ลงทะเบียนครู (Register)
-            </button>
+          {/* Top Segmented Tab Switcher */}
+          <div>
+            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/90 mb-3">
+              <button
+                id="tab-btn-login"
+                type="button"
+                onClick={() => setActiveTab('login')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === 'login'
+                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/90'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LogIn className="w-4 h-4" />
+                เข้าสู่ระบบ (Sign In)
+              </button>
+              <button
+                id="tab-btn-register"
+                type="button"
+                onClick={() => setActiveTab('register')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === 'register'
+                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/90'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <UserPlus className="w-4 h-4" />
+                ลงทะเบียนครูใหม่ (Register)
+              </button>
+            </div>
           </div>
 
-          {/* TAB 1: LOGIN (CLEAN, NO SCROLLING, EFFORTLESS) */}
+          {/* TAB 1: LOGIN FORM (BOLD, READABLE, FULL SIZED) */}
           {activeTab === 'login' && (
             <form onSubmit={handleStandardLogin} className="space-y-2.5 animate-in fade-in duration-150">
               
               {/* Identifier */}
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  id="input-login-identifier"
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="อีเมล หรือ ชื่อผู้ใช้งาน"
-                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-slate-900 bg-white hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs"
-                  required
-                />
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                  อีเมล หรือ ชื่อผู้ใช้งาน <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="input-login-identifier"
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="เช่น drive.limited@gmail.com หรือชื่อผู้ใช้"
+                    className="w-full text-sm rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 sm:py-3 text-slate-900 bg-white hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Password */}
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  id="input-login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="รหัสผ่าน"
-                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 pl-9 pr-10 py-2 text-slate-900 bg-white hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs font-mono"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
-                  title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-800">
+                    รหัสผ่าน <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-xs sm:text-sm font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                  >
+                    ลืมรหัสผ่าน?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="input-login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full text-sm rounded-xl border border-slate-300 pl-10 pr-11 py-2.5 sm:py-3 text-slate-900 bg-white hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs font-mono"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                    title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-xs px-0.5">
-                <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
+              {/* Remember Me & Admin Note */}
+              <div className="flex items-center justify-between pt-0.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
                   />
-                  <span className="text-[11px] font-medium">จดจำการเข้าใช้</span>
+                  <span className="text-xs sm:text-sm text-slate-600 font-medium">จดจำการเข้าใช้</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                >
-                  ลืมรหัสผ่าน?
-                </button>
+                <span className="text-xs text-slate-400 font-medium">
+                  Admin: drive.limited@gmail.com
+                </span>
               </div>
 
-              {/* Action Buttons in 1 Balanced Row */}
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
+              {/* Side-by-Side Action Buttons (Saves Vertical Space & Looks Bold!) */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
                   id="btn-login-submit"
                   type="submit"
                   disabled={isLoggingIn}
-                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50"
                 >
                   {isLoggingIn ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      กำลังเข้าสู่ระบบ...
+                    </>
                   ) : (
                     <>
-                      <LogIn className="w-3.5 h-3.5" />
+                      <LogIn className="w-4 h-4" />
                       เข้าสู่ระบบ
                     </>
                   )}
@@ -459,9 +495,9 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={isLoggingIn}
-                  className="w-full py-2 px-3 rounded-xl border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 sm:py-3 px-4 rounded-xl border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
@@ -471,24 +507,21 @@ export const LoginPage: React.FC = () => {
                 </button>
               </div>
 
-              <p className="text-[10px] text-slate-400 text-center pt-0.5">
-                Admin: drive.limited@gmail.com
-              </p>
             </form>
           )}
 
           {/* TAB 2: TEACHER REGISTRATION FORM */}
           {activeTab === 'register' && (
-            <form onSubmit={handleTeacherRegistration} className="space-y-2 max-h-[220px] overflow-y-auto pr-1 animate-in fade-in duration-150">
+            <form onSubmit={handleTeacherRegistration} className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 animate-in fade-in duration-150">
               
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   id="input-reg-firstname"
                   type="text"
                   value={regFirstName}
                   onChange={(e) => setRegFirstName(e.target.value)}
                   placeholder="ชื่อจริง *"
-                  className="w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
                   required
                 />
                 <input
@@ -497,19 +530,19 @@ export const LoginPage: React.FC = () => {
                   value={regLastName}
                   onChange={(e) => setRegLastName(e.target.value)}
                   placeholder="นามสกุล *"
-                  className="w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   id="input-reg-email"
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="อีเมล เช่น teacher@school.ac.th *"
-                  className="w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
                   required
                 />
                 <input
@@ -518,7 +551,7 @@ export const LoginPage: React.FC = () => {
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
                   placeholder="เบอร์โทรติดต่อ"
-                  className="w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-blue-600 focus:outline-none"
                 />
               </div>
 
@@ -526,7 +559,7 @@ export const LoginPage: React.FC = () => {
                 id="select-reg-department"
                 value={regDepartment}
                 onChange={(e) => setRegDepartment(e.target.value)}
-                className="w-full text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-900 bg-white focus:border-blue-600 focus:outline-none cursor-pointer"
+                className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-blue-600 focus:outline-none cursor-pointer"
               >
                 {DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>
@@ -535,7 +568,7 @@ export const LoginPage: React.FC = () => {
                 ))}
               </select>
 
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {GRADE_OPTIONS.map((grade) => {
                   const isSelected = selectedGrades.includes(grade);
                   return (
@@ -543,20 +576,20 @@ export const LoginPage: React.FC = () => {
                       key={grade}
                       type="button"
                       onClick={() => toggleGrade(grade)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-slate-50 text-slate-600 border-slate-300'
                       }`}
                     >
-                      {isSelected && <Check className="w-2.5 h-2.5 inline mr-0.5" />}
+                      {isSelected && <Check className="w-3 h-3 inline mr-1" />}
                       {grade}
                     </button>
                   );
                 })}
               </div>
 
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="relative">
                   <input
                     id="input-reg-password"
@@ -564,15 +597,15 @@ export const LoginPage: React.FC = () => {
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     placeholder="รหัสผ่าน (6+ ตัว) *"
-                    className="w-full text-xs rounded-lg border border-slate-300 pl-2 pr-6 py-1.5 text-slate-900 bg-white font-mono"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 pl-3 pr-7 py-2 text-slate-900 bg-white font-mono"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword(!showRegPassword)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
                   >
-                    {showRegPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
 
@@ -582,7 +615,7 @@ export const LoginPage: React.FC = () => {
                   value={regConfirmPassword}
                   onChange={(e) => setRegConfirmPassword(e.target.value)}
                   placeholder="ยืนยันรหัสผ่าน *"
-                  className="w-full text-xs rounded-lg border border-slate-300 px-2 py-1.5 text-slate-900 bg-white font-mono"
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 px-3 py-2 text-slate-900 bg-white font-mono"
                   required
                 />
               </div>
@@ -591,10 +624,10 @@ export const LoginPage: React.FC = () => {
                 id="btn-register-submit"
                 type="submit"
                 disabled={isRegistering}
-                className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isRegistering ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" />
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                 ) : (
                   'ยืนยันการลงทะเบียนคุณครู'
                 )}
@@ -602,14 +635,23 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
+          {/* Bottom Security Note */}
+          <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>ระบบรักษาความปลอดภัยข้อมูลวิชาการ</span>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-400">โรงเรียนสารสาสน์วิเทศราชพฤกษ์</span>
+          </div>
+
         </div>
 
       </div>
 
       {/* ======================================================== */}
-      {/* BOTTOM FOOTER CREDIT (Airy & Clean)                      */}
+      {/* BOTTOM FOOTER CREDIT                                     */}
       {/* ======================================================== */}
-      <footer className="relative z-20 py-1 text-center text-[10px] sm:text-[11px] text-slate-600 font-medium">
+      <footer className="relative z-20 py-2 text-center text-xs text-slate-600 font-medium">
         © 2569 {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'} • ออกแบบและพัฒนาระบบโดย <span className="font-black text-blue-700">ม.กฤตพจน์  แก้วกา</span>
       </footer>
 
