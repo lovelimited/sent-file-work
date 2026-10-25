@@ -121,6 +121,7 @@ export function updateUser(uid: string, updates: Partial<User>, actor?: User): U
   if (actor) {
     logActivity('UPDATE_USER', 'User', uid, actor, updates);
   }
+  notifyDataChanged('UPDATE_USER');
   return users[index];
 }
 
@@ -131,6 +132,7 @@ export function createUser(user: User, actor?: User): User {
   if (actor) {
     logActivity('CREATE_USER', 'User', user.uid, actor, { role: user.role, email: user.email });
   }
+  notifyDataChanged('CREATE_USER');
   return user;
 }
 

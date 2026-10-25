@@ -28,12 +28,11 @@ export const Navbar: React.FC<Props> = ({
   onToggleCollapse,
   isCollapsed
 }) => {
-  const { currentUser, role, logout, switchRole } = useAuth();
+  const { currentUser, role, logout } = useAuth();
   const settings = getSettings();
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
   const notifications = currentUser ? getNotifications(currentUser.uid) : [];
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -99,50 +98,14 @@ export const Navbar: React.FC<Props> = ({
         {/* Center / Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Quick Role Switcher Pill */}
-          <div className="relative">
-            <button
-              onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all shadow-sm ${currentRoleInfo.color} hover:shadow`}
-              title="กดเพื่อสลับสิทธิ์ทดสอบระบบ (Teacher / Admin)"
-            >
-              <RoleIcon className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{currentRoleInfo.label}</span>
-              <span className="md:hidden capitalize">{role}</span>
-              <span className="text-[10px] ml-1 bg-white/60 px-1 py-0.2 rounded border">สลับสิทธิ์</span>
-            </button>
-
-            {/* Role Switcher Dropdown */}
-            {showRoleSwitcher && (
-              <div 
-                className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2"
-                onClick={() => setShowRoleSwitcher(false)}
-              >
-                <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  สลับบทบาทผู้ใช้งาน (Demo Role)
-                </div>
-                <button
-                  onClick={() => switchRole('teacher')}
-                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between hover:bg-slate-50 ${role === 'teacher' ? 'font-semibold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-emerald-600" />
-                    คุณครูผู้ส่งงาน (Teacher)
-                  </span>
-                  {role === 'teacher' && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                </button>
-                <button
-                  onClick={() => switchRole('admin')}
-                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between hover:bg-slate-50 ${role === 'admin' ? 'font-semibold text-rose-700 bg-rose-50/50' : 'text-slate-700'}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-rose-600" />
-                    ผู้ดูแลระบบ / ฝ่ายตรวจ (Admin)
-                  </span>
-                  {role === 'admin' && <span className="w-2 h-2 rounded-full bg-rose-500"></span>}
-                </button>
-              </div>
-            )}
+          {/* Authenticated User Role Badge */}
+          <div 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border shadow-2xs ${currentRoleInfo.color}`}
+            title={`สิทธิ์การใช้งาน: ${currentRoleInfo.label}`}
+          >
+            <RoleIcon className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">{currentRoleInfo.label}</span>
+            <span className="md:hidden capitalize">{role === 'admin' ? 'ฝ่ายตรวจ (Admin)' : 'คุณครู (Teacher)'}</span>
           </div>
 
           {/* Notifications Bell */}

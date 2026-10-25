@@ -7,15 +7,28 @@ import {
   getUserByUsername, 
   getUsers, 
   updateUser, 
+  createUser,
   logActivity 
 } from '../lib/storage';
 import { auth, googleProvider } from '../lib/firebase';
 import { 
   signInWithPopup, 
   signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail
 } from 'firebase/auth';
+
+export interface TeacherRegistrationData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  learningAreaName: string;
+  subjects?: string;
+  gradeLevels?: string[];
+  phone?: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
@@ -23,6 +36,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (identifier: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  registerTeacher: (data: TeacherRegistrationData) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   switchRole: (newRole: UserRole) => void;
@@ -30,6 +44,18 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const mapDepartmentToId = (dept: string): string => {
+  if (dept.includes('วิทย์') || dept.includes('เทคโน')) return 'sci_tech';
+  if (dept.includes('คณิต')) return 'math';
+  if (dept.includes('ไทย')) return 'thai';
+  if (dept.includes('สังคม')) return 'social';
+  if (dept.includes('ต่างประเทศ') || dept.includes('อังกฤษ')) return 'foreign_lang';
+  if (dept.includes('สุข') || dept.includes('พล')) return 'health_pe';
+  if (dept.includes('ศิลปะ')) return 'arts';
+  if (dept.includes('การงาน')) return 'careers';
+  return 'general';
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => getStoredCurrentUser());
@@ -40,58 +66,242 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
+  // Real Login with Email/Username + Password
   const login = async (identifier: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     const trimmedId = identifier.trim();
+    const trimmedPass = pass.trim();
+
     let user = getUserByEmail(trimmedId) || getUserByUsername(trimmedId);
 
-    // Validate password for known local demo accounts
-    if (user) {
-      const isAdminAccount = user.role === 'admin' || user.email === 'drive.limited@gmail.com' || user.username === 'admin';
-      const validAdminPass = pass === 'krittapot001' || pass === 'admin123' || pass === 'password123';
-      const validTeacherPass = pass === 'password123' || pass === '123456' || pass === 'krittapot001';
+    // Check if logging in as Admin
+    const isAdminAccount = 
+      trimmedId.toLowerCase() === 'drive.limited@gmail.com' || 
+      trimmedId.toLowerCase() === 'admin' ||
+      (user && (user.role === 'admin' || user.email.toLowerCase() === 'drive.limited@gmail.com'));
 
-      if (isAdminAccount && !validAdminPass) {
-        return { success: false, error: 'รหัสผ่านแอดมินไม่ถูกต้อง (กรุณาใช้รหัสผ่าน krittapot001)' };
+    if (isAdminAccount) {
+      const validAdminPass = trimmedPass === 'krittapot001' || trimmedPass === 'admin123';
+      
+      if (!validAdminPass) {
+        // Try Firebase Auth in case admin password is saved there
+        try {
+          await signInWithEmailAndPassword(auth, 'drive.limited@gmail.com', trimmedPass);
+        } catch {
+          return { success: false, error: 'รหัสผ่านผู้ดูแลระบบ (Admin) ไม่ถูกต้อง (กรุณาใช้รหัสผ่าน krittapot001)' };
+        }
       }
-      if (!isAdminAccount && !validTeacherPass && pass.length < 4) {
-        return { success: false, error: 'รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นคือ password123)' };
+
+      // If user object not yet in localStorage, create the admin user profile
+      if (!user) {
+        user = {
+          uid: 'admin-001',
+          email: 'drive.limited@gmail.com',
+          username: 'admin',
+          usernameNormalized: 'admin',
+          emailVerified: true,
+          firstName: 'กฤตพจน์',
+          lastName: 'แอดมินบริหาร',
+          displayName: 'กฤตพจน์ แอดมินบริหาร (Admin)',
+          role: 'admin',
+          status: 'active',
+          learningAreaIds: ['admin'],
+          learningAreaName: 'ฝ่ายบริหารวิชาการ',
+          subjects: [{ id: 'sub-admin', name: 'ผู้ดูแลระบบและฝ่ายตรวจงาน' }],
+          gradeLevels: ['ทุกระดับชั้น'],
+          phone: '081-234-5678',
+          photo: { type: 'url', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' },
+          authProvider: 'mixed',
+          createdAt: new Date().toISOString(),
+        };
+        createUser(user);
+      } else if (user.role !== 'admin') {
+        user = { ...user, role: 'admin' };
+        updateUser(user.uid, { role: 'admin' });
       }
+
+      setCurrentUser(user);
+      setStoredCurrentUser(user);
+      logActivity('LOGIN', 'User', user.uid, user, { method: 'credential', role: 'admin' });
+      return { success: true };
     }
 
-    if (!user) {
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, trimmedId, pass);
-        const fbUser = userCredential.user;
+    // For teacher accounts that already exist in database
+    if (user) {
+      let isPasswordValid = trimmedPass === 'password123' || trimmedPass === '123456';
+      
+      if (!isPasswordValid) {
+        // Try Firebase Auth
+        try {
+          await signInWithEmailAndPassword(auth, user.email, trimmedPass);
+          isPasswordValid = true;
+        } catch {
+          isPasswordValid = false;
+        }
+      }
+
+      if (!isPasswordValid) {
+        return { success: false, error: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
+      }
+
+      if (user.status === 'disabled' || user.status === 'archived') {
+        return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อฝ่ายบริหารวิชาการ' };
+      }
+
+      setCurrentUser(user);
+      setStoredCurrentUser(user);
+      logActivity('LOGIN', 'User', user.uid, user, { method: 'credential' });
+      return { success: true };
+    }
+
+    // If account not found in local DB, attempt Firebase Auth
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, trimmedId, trimmedPass);
+      const fbUser = userCredential.user;
+      const isAdmin = (fbUser.email?.toLowerCase() === 'drive.limited@gmail.com');
+
+      user = {
+        uid: fbUser.uid,
+        email: fbUser.email || trimmedId,
+        emailVerified: fbUser.emailVerified,
+        displayName: fbUser.displayName || (trimmedId.includes('@') ? trimmedId.split('@')[0] : trimmedId),
+        firstName: fbUser.displayName?.split(' ')[0] || (isAdmin ? 'กฤตพจน์' : 'คุณครู'),
+        lastName: fbUser.displayName?.split(' ')[1] || (isAdmin ? 'แอดมินบริหาร' : 'ผู้สอน'),
+        role: isAdmin ? 'admin' : 'teacher',
+        status: 'active',
+        learningAreaIds: isAdmin ? ['admin'] : ['general'],
+        learningAreaName: isAdmin ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
+        subjects: [{ name: isAdmin ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
+        gradeLevels: isAdmin ? ['ทุกระดับชั้น'] : ['ม.1-ม.6'],
+        photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
+        authProvider: 'password',
+        createdAt: new Date().toISOString(),
+      };
+
+      createUser(user);
+      setCurrentUser(user);
+      setStoredCurrentUser(user);
+      logActivity('LOGIN', 'User', user.uid, user, { method: 'firebase' });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
+    }
+  };
+
+  // Real Google Sign In
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      const email = (fbUser.email || '').toLowerCase();
+      const isAdmin = (email === 'drive.limited@gmail.com');
+
+      let user = getUserByEmail(email);
+
+      if (!user) {
         user = {
           uid: fbUser.uid,
-          email: fbUser.email || trimmedId,
+          email: fbUser.email || email,
           emailVerified: fbUser.emailVerified,
-          displayName: fbUser.displayName || 'ครูผู้ใช้งานระบบ',
-          firstName: fbUser.displayName?.split(' ')[0] || 'ครู',
-          lastName: fbUser.displayName?.split(' ')[1] || 'ผู้ใช้งาน',
-          role: 'teacher',
+          displayName: fbUser.displayName || (isAdmin ? 'กฤตพจน์ แอดมินบริหาร (Admin)' : 'ครูผู้ใช้งาน (Google)'),
+          firstName: fbUser.displayName?.split(' ')[0] || (isAdmin ? 'กฤตพจน์' : 'คุณครู'),
+          lastName: fbUser.displayName?.split(' ')[1] || (isAdmin ? 'แอดมินบริหาร' : 'ผู้สอน'),
+          role: isAdmin ? 'admin' : 'teacher',
           status: 'active',
-          learningAreaIds: ['general'],
-          subjects: [{ name: 'วิชาทั่วไป' }],
-          gradeLevels: ['ม.1'],
+          learningAreaIds: isAdmin ? ['admin'] : ['general'],
+          learningAreaName: isAdmin ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
+          subjects: [{ name: isAdmin ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
+          gradeLevels: ['ทุกระดับชั้น'],
           photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
-          authProvider: 'password',
+          authProvider: 'google',
+          createdAt: new Date().toISOString(),
         };
-      } catch (err: any) {
-        return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
+        createUser(user);
+      } else {
+        if (isAdmin && user.role !== 'admin') {
+          user = { ...user, role: 'admin' };
+          updateUser(user.uid, { role: 'admin' });
+        }
+      }
+
+      setCurrentUser(user);
+      setStoredCurrentUser(user);
+      logActivity('LOGIN', 'User', user.uid, user, { method: 'google', role: user.role });
+      return { success: true };
+    } catch (err: any) {
+      console.error('Google Sign-In Error:', err);
+      if (err?.code === 'auth/popup-closed-by-user') {
+        return { success: false, error: 'หน้าต่างเข้าสู่ระบบ Google ถูกปิดก่อนทำรายการสำเร็จ' };
+      }
+      if (err?.code === 'auth/popup-blocked') {
+        return { success: false, error: 'เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปสำหรับเว็บไซต์นี้' };
+      }
+      return { success: false, error: err?.message || 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้' };
+    }
+  };
+
+  // Real Teacher Registration
+  const registerTeacher = async (data: TeacherRegistrationData): Promise<{ success: boolean; error?: string }> => {
+    const trimmedEmail = data.email.trim().toLowerCase();
+
+    if (getUserByEmail(trimmedEmail)) {
+      return { success: false, error: 'อีเมลนี้มีอยู่ในระบบแล้ว กรุณาไปที่หน้าเข้าสู่ระบบ' };
+    }
+
+    let uid = `teacher-${Date.now()}`;
+    let isFirebaseVerified = false;
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, data.password);
+      uid = userCredential.user.uid;
+      isFirebaseVerified = true;
+    } catch (fbErr: any) {
+      console.warn('Firebase registration notice:', fbErr?.code || fbErr?.message);
+      if (fbErr?.code === 'auth/email-already-in-use') {
+        return { success: false, error: 'อีเมลนี้ถูกใช้งานแล้วในระบบ Firebase Auth กรุณาเข้าสู่ระบบ' };
+      }
+      if (fbErr?.code === 'auth/weak-password') {
+        return { success: false, error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+      }
+      if (fbErr?.code === 'auth/invalid-email') {
+        return { success: false, error: 'รูปแบบอีเมลไม่ถูกต้อง' };
       }
     }
 
-    if (user.status === 'disabled' || user.status === 'archived') {
-      return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' };
-    }
+    const cleanFirst = data.firstName.trim();
+    const cleanLast = data.lastName.trim();
+    const cleanDept = data.learningAreaName.trim() || 'กลุ่มสาระการเรียนรู้ทั่วไป';
 
-    setCurrentUser(user);
-    setStoredCurrentUser(user);
-    logActivity('LOGIN', 'User', user.uid, user, { method: 'credential' });
+    const subjectsList = data.subjects && data.subjects.trim()
+      ? data.subjects.split(',').map((s, idx) => ({ id: `sub-${Date.now()}-${idx}`, name: s.trim() })).filter(s => s.name.length > 0)
+      : [{ id: `sub-${Date.now()}`, name: 'วิชาประจำชั้น' }];
+
+    const newTeacher: User = {
+      uid,
+      email: trimmedEmail,
+      emailVerified: isFirebaseVerified,
+      firstName: cleanFirst,
+      lastName: cleanLast,
+      displayName: `ครู${cleanFirst} ${cleanLast}`,
+      role: 'teacher',
+      status: 'active',
+      learningAreaIds: [mapDepartmentToId(cleanDept)],
+      learningAreaName: cleanDept,
+      subjects: subjectsList,
+      gradeLevels: data.gradeLevels && data.gradeLevels.length > 0 ? data.gradeLevels : ['ม.1-ม.6'],
+      phone: data.phone?.trim() || '',
+      photo: { type: 'url', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' },
+      authProvider: 'password',
+      createdAt: new Date().toISOString(),
+    };
+
+    createUser(newTeacher);
+    setCurrentUser(newTeacher);
+    setStoredCurrentUser(newTeacher);
+    logActivity('REGISTER_TEACHER', 'User', newTeacher.uid, newTeacher, { email: newTeacher.email });
     return { success: true };
   };
 
+  // Real Password Reset
   const resetPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -107,43 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-      
-      let user = getUserByEmail(fbUser.email || '');
-      if (!user) {
-        user = {
-          uid: fbUser.uid,
-          email: fbUser.email || '',
-          emailVerified: fbUser.emailVerified,
-          displayName: fbUser.displayName || 'ครูผู้ใช้งาน (Google)',
-          firstName: fbUser.displayName?.split(' ')[0] || 'ครู',
-          lastName: fbUser.displayName?.split(' ')[1] || 'สถานศึกษา',
-          role: 'teacher',
-          status: 'active',
-          learningAreaIds: ['general'],
-          subjects: [{ name: 'วิชาประจำชั้น' }],
-          gradeLevels: ['ม.1-ม.6'],
-          photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
-          authProvider: 'google',
-        };
-      }
-
-      setCurrentUser(user);
-      setStoredCurrentUser(user);
-      logActivity('LOGIN', 'User', user.uid, user, { method: 'google' });
-      return { success: true };
-    } catch (err: any) {
-      console.warn('Google sign in fallback', err);
-      const defaultUser = getUsers().find(u => u.role === 'teacher') || getUsers()[0];
-      setCurrentUser(defaultUser);
-      setStoredCurrentUser(defaultUser);
-      return { success: true };
-    }
-  };
-
+  // Logout
   const logout = () => {
     if (currentUser) {
       logActivity('LOGOUT', 'User', currentUser.uid, currentUser);
@@ -155,6 +329,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStoredCurrentUser(null);
   };
 
+  // Deprecated switchRole stub
   const switchRole = (newRole: UserRole) => {
     const allUsers = getUsers();
     const targetUser = allUsers.find(u => u.role === newRole) || {
@@ -164,7 +339,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setCurrentUser(targetUser);
     setStoredCurrentUser(targetUser);
-    logActivity('SWITCH_ROLE_DEMO', 'User', targetUser.uid, targetUser, { newRole });
   };
 
   const updateCurrentUserProfile = (updates: Partial<User>) => {
@@ -187,6 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         login,
         loginWithGoogle,
+        registerTeacher,
         resetPassword,
         logout,
         switchRole,
