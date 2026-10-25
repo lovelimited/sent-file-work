@@ -31,44 +31,204 @@ function doPost(e) {
     const updateTimeStr = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) + " น.";
 
     // ==========================================
-    // 1. สร้าง/อัปเดตแท็บ "สรุปภาพรวม" (KPI Summary)
+    // 1. สร้าง/อัปเดตแท็บ "ตาราง Dashboard" (The 2D Matrix Dashboard)
     // ==========================================
-    let kpiSheet = ss.getSheetByName("สรุปภาพรวม");
-    if (!kpiSheet) {
-      kpiSheet = ss.insertSheet("สรุปภาพรวม", 0);
+    let dashSheet = ss.getSheetByName("ตาราง Dashboard");
+    if (!dashSheet) {
+      dashSheet = ss.insertSheet("ตาราง Dashboard", 0);
+    } else {
+      ss.setActiveSheet(dashSheet);
+      ss.moveActiveSheet(1);
     }
-    kpiSheet.clear();
+    dashSheet.clear();
 
-    kpiSheet.getRange("A1").setValue("สรุปสถิติภาพรวมการส่งงานและตรวจประเมินวิชาการ");
-    kpiSheet.getRange("A1").setFontSize(14).setFontWeight("bold").setFontColor("#1e3a8a");
-
-    kpiSheet.getRange("A2").setValue(
-      "อัปเดตล่าสุด: " + updateTimeStr + 
-      " | ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา"
-    );
-    kpiSheet.getRange("A2").setFontSize(9).setFontColor("#64748b");
-
+    const matrix = data.matrixDashboard || {};
+    const topics = matrix.topics || [];
+    const matrixRows = matrix.rows || [];
     const kpi = data.kpiStats || {};
-    const kpiData = [
-      ["ตัวชี้วัด (KPI)", "จำนวน", "หน่วยนับ"],
-      ["จำนวนครูผู้สอนในระบบ (ไม่รวม Admin)", kpi.totalTeachers || 0, "คน"],
-      ["จำนวนผู้ดูแลระบบ / ฝ่ายตรวจงาน (Admin)", kpi.totalAdmins || 0, "คน"],
-      ["รวมผู้ใช้งานทั้งหมดในระบบ", kpi.totalUsers || 0, "คน"],
-      ["จำนวนหัวข้อภาระงานที่มอบหมาย", kpi.totalTopics || 0, "รายการ"],
-      ["จำนวนการส่งงานจริง", kpi.totalSubmissions || 0, "ครั้ง"],
-      ["งานที่ผ่านการตรวจรับรองแล้ว (Passed)", kpi.passedSubmissions || 0, "รายการ"],
-      ["งานที่ต้องส่งแก้ไขปรับปรุง (Revision)", kpi.revisionRequiredCount || 0, "รายการ"],
-      ["อัตราความสำเร็จภาพรวม (Completion Rate)", (kpi.overallCompletionRate || 0) + "%", "เปอร์เซ็นต์"]
+
+    // Header Title
+    dashSheet.getRange("A1").setValue(data.schoolName || "โรงเรียนสารสาสน์วิเทศราชพฤกษ์");
+    dashSheet.getRange("A1").setFontSize(16).setFontWeight("bold").setFontColor("#1e3a8a");
+
+    dashSheet.getRange("A2").setValue(
+      "ตาราง DASHBOARD ภาพรวมการส่งงานครูและผลการตรวจประเมินวิชาการ (ปีการศึกษา " + (data.academicYear || "2569") + " / " + (data.semester || "1") + ")"
+    );
+    dashSheet.getRange("A2").setFontSize(11).setFontWeight("bold").setFontColor("#334155");
+
+    dashSheet.getRange("A3").setValue(
+      "อัปเดตล่าสุด: " + updateTimeStr + 
+      " • ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา" +
+      " • สาเหตุการซิงค์: " + (data.triggerReason || "AUTO_SYNC")
+    );
+    dashSheet.getRange("A3").setFontSize(9).setFontColor("#64748b");
+
+    // ----------------------------------------------------
+    // Executive KPI Summary Cards (Row 5 - Row 6)
+    // ----------------------------------------------------
+    const kpiHeaders = [
+      "ครูผู้สอนทั้งหมด",
+      "หัวข้องานทั้งหมด",
+      "ส่งครบ 100%",
+      "ส่งบางส่วน",
+      "ยังไม่ส่งงาน",
+      "ความสำเร็จรวม"
+    ];
+    const kpiValues = [
+      (kpi.totalTeachers || matrixRows.length) + " คน",
+      topics.length + " หัวข้อ",
+      (kpi.completed100PercentTeachers || 0) + " คน",
+      (kpi.partialTeachers || 0) + " คน",
+      (kpi.zeroTeachers || 0) + " คน",
+      (kpi.overallCompletionRate || 0) + "%"
     ];
 
-    const kpiRange = kpiSheet.getRange(4, 1, kpiData.length, 3);
-    kpiRange.setValues(kpiData);
-    kpiSheet.getRange(4, 1, 1, 3).setBackground("#1e40af").setFontColor("#ffffff").setFontWeight("bold");
-    kpiSheet.getRange(4, 1, kpiData.length, 3).setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
-    kpiSheet.getRange(5, 2, kpiData.length - 1, 2).setHorizontalAlignment("center");
-    kpiSheet.autoResizeColumn(1);
-    kpiSheet.autoResizeColumn(2);
-    kpiSheet.autoResizeColumn(3);
+    dashSheet.getRange(5, 1, 1, 6).setValues([kpiHeaders]);
+    dashSheet.getRange(5, 1, 1, 6).setBackground("#f1f5f9").setFontColor("#475569").setFontWeight("bold").setFontSize(9).setHorizontalAlignment("center");
+
+    dashSheet.getRange(6, 1, 1, 6).setValues([kpiValues]);
+    dashSheet.getRange(6, 1, 1, 6).setFontSize(14).setFontWeight("bold").setHorizontalAlignment("center");
+    dashSheet.getRange(6, 1).setFontColor("#1e40af"); // Total teachers
+    dashSheet.getRange(6, 2).setFontColor("#6b21a8"); // Total topics
+    dashSheet.getRange(6, 3).setFontColor("#16a34a"); // 100% completed
+    dashSheet.getRange(6, 4).setFontColor("#d97706"); // Partial
+    dashSheet.getRange(6, 5).setFontColor("#dc2626"); // Zero
+    dashSheet.getRange(6, 6).setFontColor("#0284c7"); // Rate
+    dashSheet.getRange(5, 1, 2, 6).setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+
+    // ----------------------------------------------------
+    // Matrix Table (Starting Row 8)
+    // ----------------------------------------------------
+    dashSheet.getRange("A8").setValue("📊 ตารางติดตามการส่งงานครูรายบุคคล (Teacher Submission Matrix Dashboard)");
+    dashSheet.getRange("A8").setFontSize(11).setFontWeight("bold").setFontColor("#1e293b");
+
+    // Build Table Column Headers
+    const matrixColHeaders = [
+      "ลำดับ",
+      "ชื่อ-นามสกุลครูผู้สอน",
+      "กลุ่มสาระการเรียนรู้"
+    ];
+    topics.forEach((t, i) => {
+      matrixColHeaders.push((i + 1) + ". " + t.title);
+    });
+    matrixColHeaders.push("ส่งแล้ว (งาน)", "ภาระงานทั้งหมด", "คิดเป็น %", "สถานะภาพรวม");
+
+    const headerRange = dashSheet.getRange(9, 1, 1, matrixColHeaders.length);
+    headerRange.setValues([matrixColHeaders]);
+    headerRange.setBackground("#1e40af"); // Deep Blue
+    headerRange.setFontColor("#ffffff");
+    headerRange.setFontWeight("bold");
+    headerRange.setFontSize(10);
+    headerRange.setHorizontalAlignment("center");
+    headerRange.setVerticalAlignment("middle");
+
+    // Populate Teacher Rows
+    if (matrixRows.length > 0) {
+      const allRowData = [];
+      const cellBackgrounds = [];
+      const cellFontColors = [];
+
+      matrixRows.forEach((r, rIdx) => {
+        const rowVals = [
+          r.no,
+          r.teacherName,
+          r.department
+        ];
+        const rowBg = ["#ffffff", "#ffffff", "#ffffff"];
+        const rowFg = ["#000000", "#000000", "#334155"];
+
+        topics.forEach(t => {
+          const c = r.cells ? r.cells[t.id] : null;
+          const status = c ? c.status : 'not_submitted';
+          const txt = c ? c.statusText : '❌ ยังไม่ส่ง';
+
+          rowVals.push(txt);
+          if (status === 'passed') {
+            rowBg.push("#dcfce7"); // Green
+            rowFg.push("#15803d");
+          } else if (status === 'submitted') {
+            rowBg.push("#e0e7ff"); // Blue
+            rowFg.push("#3730a3");
+          } else if (status === 'revision_required') {
+            rowBg.push("#fef3c7"); // Amber
+            rowFg.push("#b45309");
+          } else {
+            rowBg.push("#fee2e2"); // Rose Red
+            rowFg.push("#b91c1c");
+          }
+        });
+
+        rowVals.push(
+          r.submittedCount + " งาน",
+          r.totalTopics + " งาน",
+          (r.completionRate || 0) + "%",
+          r.overallStatus || "-"
+        );
+        rowBg.push("#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc");
+        rowFg.push("#0f172a", "#0f172a", "#1e40af", "#0f172a");
+
+        allRowData.push(rowVals);
+        cellBackgrounds.push(rowBg);
+        cellFontColors.push(rowFg);
+      });
+
+      const dataRange = dashSheet.getRange(10, 1, allRowData.length, matrixColHeaders.length);
+      dataRange.setValues(allRowData);
+      dataRange.setBackgrounds(cellBackgrounds);
+      dataRange.setFontColors(cellFontColors);
+      dataRange.setFontSize(9.5);
+      dataRange.setVerticalAlignment("middle");
+
+      // Alignment
+      dashSheet.getRange(10, 1, allRowData.length, 1).setHorizontalAlignment("center");
+      dashSheet.getRange(10, 4, allRowData.length, matrixColHeaders.length - 3).setHorizontalAlignment("center");
+
+      // Borders
+      dashSheet.getRange(9, 1, allRowData.length + 1, matrixColHeaders.length).setBorder(
+        true, true, true, true, true, true,
+        "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID
+      );
+
+      // ----------------------------------------------------
+      // Summary Footer Row (At the bottom of Matrix Table)
+      // ----------------------------------------------------
+      const footerRowIndex = 10 + allRowData.length;
+      const footerVals = ["", "สรุปจำนวนครูที่ส่งในแต่ละหัวข้อ", ""];
+      const topicStats = matrix.topicStats || {};
+
+      topics.forEach(t => {
+        const stat = topicStats[t.id];
+        if (stat) {
+          footerVals.push(stat.submittedCount + "/" + matrixRows.length + " คน (" + stat.rate + "%)");
+        } else {
+          footerVals.push("-");
+        }
+      });
+
+      footerVals.push(
+        (kpi.totalSubmissions || 0) + " งาน",
+        (matrixRows.length * topics.length) + " งาน",
+        (kpi.overallCompletionRate || 0) + "%",
+        "ภาพรวมทั้งโรงเรียน"
+      );
+
+      const footerRange = dashSheet.getRange(footerRowIndex, 1, 1, matrixColHeaders.length);
+      footerRange.setValues([footerVals]);
+      footerRange.setBackground("#e2e8f0");
+      footerRange.setFontColor("#0f172a");
+      footerRange.setFontWeight("bold");
+      footerRange.setFontSize(9.5);
+      footerRange.setHorizontalAlignment("center");
+      footerRange.setVerticalAlignment("middle");
+      dashSheet.getRange(footerRowIndex, 1, 1, matrixColHeaders.length).setBorder(
+        true, true, true, true, true, true,
+        "#94a3b8", SpreadsheetApp.BorderStyle.SOLID
+      );
+    }
+
+    for (let c = 1; c <= Math.min(matrixColHeaders.length, 25); c++) {
+      dashSheet.autoResizeColumn(c);
+    }
 
     // ==========================================
     // 2. สร้าง/อัปเดตแท็บ "รายชื่อครูผู้สอน" (Teachers Roster)
@@ -148,11 +308,11 @@ function doPost(e) {
     }
 
     // ==========================================
-    // 3. สร้าง/อัปเดตแท็บ "รายการส่งงาน" (Detail)
+    // 3. สร้าง/อัปเดตแท็บ "รายการส่งงานละเอียด" (Detail Log)
     // ==========================================
-    let detailSheet = ss.getSheetByName("รายการส่งงาน");
+    let detailSheet = ss.getSheetByName("รายการส่งงานละเอียด");
     if (!detailSheet) {
-      detailSheet = ss.insertSheet("รายการส่งงาน", 2);
+      detailSheet = ss.insertSheet("รายการส่งงานละเอียด", 2);
     }
     detailSheet.clear();
 
@@ -160,14 +320,13 @@ function doPost(e) {
     detailSheet.getRange("A1").setFontSize(14).setFontWeight("bold").setFontColor("#1e3a8a");
 
     detailSheet.getRange("A2").setValue(
-      "รายงานติดตามการส่งงานครูและผลการตรวจประเมินวิชาการ (ปีการศึกษา " + (data.academicYear || "2569") + " / " + (data.semester || "1") + ")"
+      "บันทึกประวัติการส่งงานครูและผลการตรวจประเมินวิชาการรายรายการ (ปีการศึกษา " + (data.academicYear || "2569") + " / " + (data.semester || "1") + ")"
     );
     detailSheet.getRange("A2").setFontSize(11).setFontWeight("bold").setFontColor("#475569");
 
     detailSheet.getRange("A3").setValue(
       "อัปเดตล่าสุด: " + updateTimeStr + 
-      " | สาเหตุการซิงค์: " + (data.triggerReason || "AUTO_SYNC") + 
-      " | ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา"
+      " • ออกแบบและพัฒนาระบบโดย: ม.กฤตพจน์ แก้วกา"
     );
     detailSheet.getRange("A3").setFontSize(9).setFontColor("#64748b");
 
@@ -186,13 +345,13 @@ function doPost(e) {
       "บันทึกผลการตรวจ / ข้อเสนอแนะ"
     ];
 
-    const headerRange = detailSheet.getRange(5, 1, 1, headers.length);
-    headerRange.setValues([headers]);
-    headerRange.setBackground("#1e40af");
-    headerRange.setFontColor("#ffffff");
-    headerRange.setFontWeight("bold");
-    headerRange.setHorizontalAlignment("center");
-    headerRange.setVerticalAlignment("middle");
+    const dHeaderRange = detailSheet.getRange(5, 1, 1, headers.length);
+    dHeaderRange.setValues([headers]);
+    dHeaderRange.setBackground("#475569");
+    dHeaderRange.setFontColor("#ffffff");
+    dHeaderRange.setFontWeight("bold");
+    dHeaderRange.setHorizontalAlignment("center");
+    dHeaderRange.setVerticalAlignment("middle");
 
     const rows = data.rows || [];
     if (rows.length > 0) {
@@ -211,10 +370,10 @@ function doPost(e) {
         r.adminReviewNote
       ]);
 
-      const dataRange = detailSheet.getRange(6, 1, rowValues.length, headers.length);
-      dataRange.setValues(rowValues);
-      dataRange.setFontSize(10);
-      dataRange.setVerticalAlignment("middle");
+      const dDataRange = detailSheet.getRange(6, 1, rowValues.length, headers.length);
+      dDataRange.setValues(rowValues);
+      dDataRange.setFontSize(10);
+      dDataRange.setVerticalAlignment("middle");
 
       detailSheet.getRange(5, 1, rowValues.length + 1, headers.length).setBorder(
         true, true, true, true, true, true,
@@ -231,17 +390,24 @@ function doPost(e) {
       detailSheet.autoResizeColumn(c);
     }
 
-    // ลบชีตตั้งต้น "ชีต1" หากมี
-    const defaultSheet = ss.getSheetByName("ชีต1");
-    if (defaultSheet && ss.getSheets().length > 1) {
-      try { ss.deleteSheet(defaultSheet); } catch (e) {}
+    // ลบชีตตั้งต้น "ชีต1" หรือ "สรุปภาพรวม" หากมีชีตใหม่แล้ว
+    const oldSheet = ss.getSheetByName("ชีต1");
+    if (oldSheet && ss.getSheets().length > 1) {
+      try { ss.deleteSheet(oldSheet); } catch (e) {}
     }
+    const oldKpi = ss.getSheetByName("สรุปภาพรวม");
+    if (oldKpi && ss.getSheets().length > 1) {
+      try { ss.deleteSheet(oldKpi); } catch (e) {}
+    }
+
+    // Active sheet เป็นแท็บตาราง Dashboard
+    ss.setActiveSheet(dashSheet);
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "Synced " + rows.length + " rows and " + roster.length + " teachers successfully",
-      rowCount: rows.length,
-      teacherCount: roster.length,
+      message: "Synced " + matrixRows.length + " teachers and " + topics.length + " topics into Dashboard Table successfully",
+      teachersCount: matrixRows.length,
+      topicsCount: topics.length,
       syncedAt: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
 

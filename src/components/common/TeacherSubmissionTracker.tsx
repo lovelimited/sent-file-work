@@ -31,8 +31,12 @@ import {
   X,
   AlertTriangle,
   ListTodo,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download,
+  RefreshCw
 } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
 import { DocumentViewerModal } from './DocumentViewerModal';
 
 export const TeacherSubmissionTracker: React.FC = () => {
@@ -89,6 +93,92 @@ export const TeacherSubmissionTracker: React.FC = () => {
   const currentTopic = topics.find(t => t.id === activeTopicTab) || topics[0];
   const currentTopicStat = currentTopic ? topicStats[currentTopic.id] || { submittedCount: 0, passedCount: 0, completionRate: 0 } : null;
 
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+
+  const handleManualSyncSheets = async () => {
+    setIsSyncingSheets(true);
+    const res = await syncDataToGoogleSheets('TRACKER_SYNC');
+    setIsSyncingSheets(false);
+    Swal.fire({
+      title: 'ซิงค์ข้อมูลลง Google Sheets สำเร็จ!',
+      text: `ส่งออกข้อมูลเข้าสู่ระบบ Google Sheets เรียบร้อยแล้ว (${res.rowCount} รายการ)`,
+      icon: 'success',
+      confirmButtonText: 'เปิดดูเอกสาร Google Sheets',
+      showCancelButton: true,
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#16a34a'
+    }).then(r => {
+      if (r.isConfirmed) {
+        window.open('https://docs.google.com/spreadsheets/d/1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU', '_blank');
+      }
+    });
+  };
+
+  const handleExportDashboardCSV = () => {
+    if (rows.length === 0) return;
+    const headers = [
+      '"ลำดับ"',
+      '"ชื่อ-นามสกุลครูผู้สอน"',
+      '"กลุ่มสาระการเรียนรู้"',
+      ...topics.map(t => `"${t.title.replace(/"/g, '""')}"`),
+      '"ส่งแล้ว (งาน)"',
+      '"ภาระงานทั้งหมด"',
+      '"คิดเป็น %"',
+      '"สถานะภาพรวม"'
+    ];
+
+    const csvRows = rows.map((r, idx) => {
+      const topicCols = topics.map(t => {
+        const c = r.cells[t.id];
+        if (c?.status === 'passed') return '"✓ ผ่านแล้ว"';
+        if (c?.status === 'submitted') return '"⏳ รอตรวจ"';
+        if (c?.status === 'revision_required') return '"⚠️ แก้ไข"';
+        return '"❌ ยังไม่ส่ง"';
+      });
+
+      const overall = r.submittedCount === topics.length && topics.length > 0
+        ? '"✓ ส่งครบ 100%"'
+        : r.submittedCount > 0 ? `"${r.submittedCount}/${topics.length} งาน"` : '"❌ ยังไม่ส่ง"';
+
+      return [
+        idx + 1,
+        `"${r.teacher.displayName}"`,
+        `"${r.teacher.learningAreaName || 'วิชาการ'}"`,
+        ...topicCols,
+        r.submittedCount,
+        topics.length,
+        `"${r.completionRate}%"`,
+        overall
+      ].join(',');
+    });
+
+    // Summary footer row
+    const footerCols = topics.map(t => {
+      const stat = topicStats[t.id];
+      return stat ? `"${stat.submittedCount}/${rows.length} คน (${stat.completionRate}%)"` : '"-"';
+    });
+    const footerRow = [
+      '""',
+      '"สรุปจำนวนครูที่ส่งในแต่ละหัวข้อ"',
+      '""',
+      ...footerCols,
+      `"${rows.reduce((acc, curr) => acc + curr.submittedCount, 0)} งาน"`,
+      `"${rows.length * topics.length} งาน"`,
+      `"${overallPercentage}%"`,
+      '"ภาพรวมทั้งโรงเรียน"'
+    ].join(',');
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...csvRows, footerRow].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ตาราง_Dashboard_การส่งงานครู_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden w-full max-w-full min-w-0 space-y-4">
       
@@ -135,13 +225,31 @@ export const TeacherSubmissionTracker: React.FC = () => {
             target="_blank"
             rel="noopener noreferrer"
             className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            title="ข้อมูลในตารางนี้จะซิงค์ลง Google Sheets อัตโนมัติทุกครั้งที่มีการอัปเดต"
+            title="เปิดดูตาราง Dashboard บน Google Sheets"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">ซิงค์ Sheets อัตโนมัติ</span>
-            <span className="sm:hidden">Sheets</span>
+            <span>Google Sheets</span>
           </a>
+
+          <button
+            onClick={handleManualSyncSheets}
+            disabled={isSyncingSheets}
+            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            title="กดสั่งซิงค์ข้อมูลตาราง Dashboard ลง Google Sheets ทันที"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin text-blue-600' : 'text-slate-600'}`} />
+            <span>{isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ทันที'}</span>
+          </button>
+
+          <button
+            onClick={handleExportDashboardCSV}
+            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="ส่งออกตาราง Dashboard เมทริกซ์ เป็นไฟล์ CSV (รองรับภาษาไทย 100%)"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>ส่งออก Dashboard (CSV)</span>
+          </button>
         </div>
       </div>
 

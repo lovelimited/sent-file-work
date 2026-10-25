@@ -22,7 +22,28 @@ export interface SheetsSyncPayload {
     totalSubmissions: number;
     passedSubmissions: number;
     revisionRequiredCount: number;
+    completed100PercentTeachers: number;
+    partialTeachers: number;
+    zeroTeachers: number;
     overallCompletionRate: number;
+  };
+  matrixDashboard?: {
+    topics: Array<{ id: string; title: string; category: string }>;
+    rows: Array<{
+      no: number;
+      teacherName: string;
+      department: string;
+      cells: Record<string, {
+        status: 'passed' | 'submitted' | 'revision_required' | 'not_submitted';
+        statusText: string;
+        isLate?: boolean;
+      }>;
+      submittedCount: number;
+      totalTopics: number;
+      completionRate: number;
+      overallStatus: string;
+    }>;
+    topicStats: Record<string, { submittedCount: number; rate: number }>;
   };
   teachersRoster?: Array<{
     no: number;
@@ -153,6 +174,83 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
     const overallRate = totalAssignedWorks > 0 ? Math.round((totalCompletedWorks / totalAssignedWorks) * 100) : 0;
     const nowIso = new Date().toISOString();
 
+    // Build 2D Matrix Dashboard data for Google Sheets
+    let completed100PercentTeachers = 0;
+    let partialTeachers = 0;
+    let zeroTeachers = 0;
+
+    const matrixRows = matrix.rows.map((r, idx) => {
+      const teacherCells: Record<string, {
+        status: 'passed' | 'submitted' | 'revision_required' | 'not_submitted';
+        statusText: string;
+        isLate?: boolean;
+      }> = {};
+
+      topics.forEach(t => {
+        const cell = r.cells[t.id];
+        let status: 'passed' | 'submitted' | 'revision_required' | 'not_submitted' = 'not_submitted';
+        let statusText = '❌ ยังไม่ส่ง';
+
+        if (cell?.status === 'passed') {
+          status = 'passed';
+          statusText = '✓ ผ่านแล้ว';
+        } else if (cell?.status === 'revision_required') {
+          status = 'revision_required';
+          statusText = '⚠️ แก้ไข';
+        } else if (cell?.status === 'submitted') {
+          status = 'submitted';
+          statusText = '⏳ รอตรวจ';
+        }
+
+        teacherCells[t.id] = {
+          status,
+          statusText,
+          isLate: cell?.isLate
+        };
+      });
+
+      if (r.submittedCount === topics.length && topics.length > 0) {
+        completed100PercentTeachers++;
+      } else if (r.submittedCount > 0) {
+        partialTeachers++;
+      } else {
+        zeroTeachers++;
+      }
+
+      let overallStatus = '❌ ยังไม่ส่งงาน';
+      if (r.submittedCount === topics.length && topics.length > 0) {
+        overallStatus = '✓ ส่งครบ 100%';
+      } else if (r.submittedCount > 0) {
+        overallStatus = `⏳ ส่งแล้ว ${r.submittedCount}/${topics.length}`;
+      }
+
+      return {
+        no: idx + 1,
+        teacherName: r.teacher.displayName,
+        department: r.teacher.learningAreaName || 'วิชาการ',
+        cells: teacherCells,
+        submittedCount: r.submittedCount,
+        totalTopics: topics.length,
+        completionRate: r.completionRate,
+        overallStatus
+      };
+    });
+
+    const topicStatsMap: Record<string, { submittedCount: number; rate: number }> = {};
+    topics.forEach(t => {
+      const stats = matrix.topicStats[t.id] || { submittedCount: 0, completionRate: 0 };
+      topicStatsMap[t.id] = {
+        submittedCount: stats.submittedCount,
+        rate: stats.completionRate
+      };
+    });
+
+    const matrixDashboard = {
+      topics: topics.map(t => ({ id: t.id, title: t.title, category: t.category })),
+      rows: matrixRows,
+      topicStats: topicStatsMap
+    };
+
     const payload: SheetsSyncPayload = {
       sheetId: settings.googleSheetReportId,
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${settings.googleSheetReportId}`,
@@ -169,8 +267,12 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
         totalSubmissions,
         passedSubmissions: passedCount,
         revisionRequiredCount: revisionCount,
+        completed100PercentTeachers,
+        partialTeachers,
+        zeroTeachers,
         overallCompletionRate: overallRate
       },
+      matrixDashboard,
       teachersRoster,
       rows: reportRows
     };

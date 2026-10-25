@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { triggerAutoSyncToGoogleSheets } from './lib/googleSheetsSync';
 
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { SubmitWorkPage } from './features/submissions/SubmitWorkPage';
@@ -27,6 +28,22 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    // Initial sync to Google Sheets on app startup
+    triggerAutoSyncToGoogleSheets('APP_STARTUP');
+
+    // Auto-sync whenever data is updated anywhere in the system
+    const handleDataChanged = (e: any) => {
+      const action = e?.detail?.action || 'MUTATION';
+      triggerAutoSyncToGoogleSheets(action);
+    };
+
+    window.addEventListener('sent_work_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('sent_work_data_changed', handleDataChanged);
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <BrowserRouter>

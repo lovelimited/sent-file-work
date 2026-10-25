@@ -80,7 +80,20 @@ function notifyDataChanged(action: string) {
 
 // System Settings
 export function getSettings(): SystemSettings {
-  return getItem<SystemSettings>(STORAGE_KEYS.SETTINGS, initialSettings);
+  const current = getItem<SystemSettings>(STORAGE_KEYS.SETTINGS, initialSettings);
+  let changed = false;
+  if (!current.googleAppsScriptWebhookUrl || !current.googleAppsScriptWebhookUrl.includes('/exec')) {
+    current.googleAppsScriptWebhookUrl = 'https://script.google.com/macros/s/AKfycbwWXslp2PkyGAeAL1YGWe84sc6czzRMOZaJdxYI7sScXGbgg8eCayu82sL2-INeujErDQ/exec';
+    changed = true;
+  }
+  if (!current.googleSheetReportId || current.googleSheetReportId !== '1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU') {
+    current.googleSheetReportId = '1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU';
+    changed = true;
+  }
+  if (changed) {
+    setItem(STORAGE_KEYS.SETTINGS, current);
+  }
+  return current;
 }
 
 export function saveSettings(settings: SystemSettings, actor?: User): SystemSettings {
