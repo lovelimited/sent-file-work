@@ -270,6 +270,7 @@ export const LoginPage: React.FC = () => {
         {/* Tab Switcher: Sign In vs Register */}
         <div className="flex rounded-2xl bg-slate-100 p-1 border border-slate-200">
           <button
+            id="tab-btn-login"
             type="button"
             onClick={() => setActiveTab('login')}
             className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${
@@ -282,6 +283,7 @@ export const LoginPage: React.FC = () => {
             เข้าสู่ระบบ (Sign In)
           </button>
           <button
+            id="tab-btn-register"
             type="button"
             onClick={() => setActiveTab('register')}
             className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${
@@ -306,6 +308,7 @@ export const LoginPage: React.FC = () => {
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    id="input-login-identifier"
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
@@ -332,6 +335,7 @@ export const LoginPage: React.FC = () => {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    id="input-login-password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -363,6 +367,7 @@ export const LoginPage: React.FC = () => {
               </div>
 
               <button
+                id="btn-login-submit"
                 type="submit"
                 disabled={isLoggingIn}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.01] cursor-pointer disabled:opacity-50"
@@ -396,6 +401,7 @@ export const LoginPage: React.FC = () => {
             {/* Google Workspace Sign-In */}
             <div>
               <button
+                id="btn-google-login"
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isLoggingIn}
@@ -434,6 +440,7 @@ export const LoginPage: React.FC = () => {
                     ชื่อจริง *
                   </label>
                   <input
+                    id="input-reg-firstname"
                     type="text"
                     value={regFirstName}
                     onChange={(e) => setRegFirstName(e.target.value)}
@@ -447,6 +454,7 @@ export const LoginPage: React.FC = () => {
                     นามสกุล *
                   </label>
                   <input
+                    id="input-reg-lastname"
                     type="text"
                     value={regLastName}
                     onChange={(e) => setRegLastName(e.target.value)}
@@ -466,6 +474,7 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
+                      id="input-reg-email"
                       type="email"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
@@ -482,6 +491,7 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
+                      id="input-reg-phone"
                       type="tel"
                       value={regPhone}
                       onChange={(e) => setRegPhone(e.target.value)}
@@ -498,6 +508,7 @@ export const LoginPage: React.FC = () => {
                   กลุ่มสาระการเรียนรู้ *
                 </label>
                 <select
+                  id="select-reg-department"
                   value={regDepartment}
                   onChange={(e) => setRegDepartment(e.target.value)}
                   className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer"
@@ -518,6 +529,7 @@ export const LoginPage: React.FC = () => {
                 <div className="relative">
                   <BookOpen className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
+                    id="input-reg-subjects"
                     type="text"
                     value={regSubjects}
                     onChange={(e) => setRegSubjects(e.target.value)}
@@ -562,6 +574,7 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
+                      id="input-reg-password"
                       type={showRegPassword ? 'text' : 'password'}
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
@@ -586,6 +599,7 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
+                      id="input-reg-confirm-password"
                       type={showRegPassword ? 'text' : 'password'}
                       value={regConfirmPassword}
                       onChange={(e) => setRegConfirmPassword(e.target.value)}
@@ -598,6 +612,7 @@ export const LoginPage: React.FC = () => {
               </div>
 
               <button
+                id="btn-register-submit"
                 type="submit"
                 disabled={isRegistering}
                 className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.01] cursor-pointer disabled:opacity-50"
