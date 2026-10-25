@@ -310,32 +310,42 @@ export const SubmissionDetailPage: React.FC = () => {
       window.open(file.driveUrl, '_blank');
       return;
     }
-    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nเอกสารผลงานวิชาการ: ${file.fileName}\nครูผู้จัดทำ: ${submission?.teacherName} (${submission?.teacherDepartment})\nหัวข้อเรื่อง: ${submission?.topicTitle}\nงานย่อย: ${subTaskTitle || file.subTaskTitle || 'เอกสารประกอบหลัก'}\nวันเวลาส่ง: ${new Date(file.uploadedAt || Date.now()).toLocaleString('th-TH')}\n\nเอกสารจัดเก็บในระบบส่งงานวิชาการและคลัง Google Drive ของสถาบัน`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.fileName.includes('.') ? file.fileName : `${file.fileName}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (file.driveFileId) {
+      window.open(`https://drive.google.com/uc?export=download&id=${file.driveFileId}`, '_blank');
+      return;
+    }
+    if (file.previewUrl && file.previewUrl.startsWith('blob:')) {
+      const a = document.createElement('a');
+      a.href = file.previewUrl;
+      a.download = file.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
 
     Swal.fire({
-      title: 'ดาวน์โหลดไฟล์สำเร็จ',
+      title: 'ข้อมูลไฟล์เอกสาร',
       html: `
         <div class="text-left text-xs space-y-2 text-slate-700">
           <p><strong>ชื่อไฟล์:</strong> ${file.fileName}</p>
-          <div class="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900">
-            <p class="font-bold">📁 คลัง Google Drive สถาบัน:</p>
-            <p class="font-mono text-[11px] mt-0.5">${file.folderPath || `Google Drive / ${submission?.topicTitle} /`}</p>
+          <p><strong>งานย่อย:</strong> ${subTaskTitle || file.subTaskTitle || 'เอกสารหลัก'}</p>
+          <div class="p-2.5 bg-blue-50 rounded-xl border border-blue-200 text-blue-900">
+            <p class="font-bold">📁 โฟลเดอร์ใน Google Drive:</p>
+            <p class="font-mono text-[11px] mt-0.5">${file.folderPath || `Google Drive / ${submission?.topicTitle} / ${submission?.teacherName} /`}</p>
           </div>
-          <p class="text-emerald-700 font-semibold">✓ บันทึกสำเนาไฟล์ลงในเครื่องของคุณเรียบร้อยแล้ว</p>
+          <p class="text-slate-500">กรุณาเข้าดูหรือดาวน์โหลดไฟล์ต้นฉบับผ่าน Google Drive ของสถาบัน</p>
         </div>
       `,
-      icon: 'success',
-      confirmButtonText: 'ตกลง',
-      confirmButtonColor: '#16a34a'
+      icon: 'info',
+      confirmButtonText: 'เปิด Google Drive',
+      showCancelButton: true,
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#059669'
+    }).then(res => {
+      if (res.isConfirmed) {
+        window.open(file.driveUrl || 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd', '_blank');
+      }
     });
   };
 

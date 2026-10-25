@@ -79,10 +79,10 @@ function handleFileUpload(data) {
     targetFolder = getOrCreateFolder(topicFolder, teacherName);
   }
 
-  // Construct final file name
+  // Keep file name clean inside teacher's dedicated subfolder
   let rawFileName = data.fileName || ("file_" + Date.now());
   let finalFileName = rawFileName;
-  if (data.teacherName && !rawFileName.includes(data.teacherName)) {
+  if (!teacherName && data.teacherName && !rawFileName.includes(data.teacherName)) {
     finalFileName = "[" + data.teacherName.trim() + "] " + rawFileName;
   }
 
@@ -103,14 +103,17 @@ function handleFileUpload(data) {
   const fileId = file.getId();
   const fileUrl = file.getUrl();
   const downloadUrl = "https://drive.google.com/uc?export=download&id=" + fileId;
-  const previewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
+  const previewUrl = "https://drive.google.com/file/d/" + fileId + "/preview";
+  const viewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
 
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
     message: "บันทึกไฟล์ลง Google Drive สำเร็จ",
     fileId: fileId,
     fileName: finalFileName,
+    originalName: rawFileName,
     fileUrl: fileUrl,
+    viewUrl: viewUrl,
     previewUrl: previewUrl,
     downloadUrl: downloadUrl,
     folderName: targetFolder.getName(),
@@ -136,8 +139,9 @@ function handleBatchFilesUpload(data) {
   for (let i = 0; i < filesList.length; i++) {
     const f = filesList[i];
     let rawFileName = f.fileName || ("file_" + Date.now() + "_" + i);
+    // Keep clean original file name when organized inside teacher's subfolder
     let finalFileName = rawFileName;
-    if (data.teacherName && !rawFileName.includes(data.teacherName)) {
+    if (!teacherName && data.teacherName && !rawFileName.includes(data.teacherName)) {
       finalFileName = "[" + data.teacherName.trim() + "] " + rawFileName;
     }
 
@@ -156,11 +160,13 @@ function handleBatchFilesUpload(data) {
 
     const fileId = file.getId();
     uploadedFiles.push({
+      fileName: finalFileName,
       originalName: f.fileName,
       savedName: finalFileName,
       fileId: fileId,
       fileUrl: file.getUrl(),
-      previewUrl: "https://drive.google.com/file/d/" + fileId + "/view",
+      viewUrl: "https://drive.google.com/file/d/" + fileId + "/view",
+      previewUrl: "https://drive.google.com/file/d/" + fileId + "/preview",
       downloadUrl: "https://drive.google.com/uc?export=download&id=" + fileId,
       subTaskId: f.subTaskId
     });

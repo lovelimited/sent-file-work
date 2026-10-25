@@ -191,7 +191,7 @@ export const SubmitWorkPage: React.FC = () => {
           fileName: file.name,
           fileSizeBytes: file.size,
           mimeType: file.type || 'application/octet-stream',
-          previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+          previewUrl: (file.type.startsWith('image/') || file.type === 'application/pdf') ? URL.createObjectURL(file) : undefined,
           subTaskId: subTask?.id,
           subTaskTitle: subTask?.title,
         });
@@ -369,16 +369,27 @@ export const SubmitWorkPage: React.FC = () => {
 
         if (driveRes.success) {
           if (driveRes.folderUrl) driveFolderUrl = driveRes.folderUrl;
-          uploadedFilesList = files.map(f => {
-            const up = driveRes.files.find(uf => uf.fileName === f.fileName);
+          uploadedFilesList = files.map((f, i) => {
+            const up = driveRes.files.find(uf => 
+              uf.fileName === f.fileName || 
+              (uf as any).originalName === f.fileName || 
+              (uf as any).savedName === f.fileName ||
+              (uf.subTaskId && uf.subTaskId === f.subTaskId)
+            ) || driveRes.files[i];
+
+            const fileId = up?.fileId;
+            const fileUrl = up?.fileUrl || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : undefined);
+            const previewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : (f.previewUrl || up?.previewUrl);
+            const downloadUrl = up?.downloadUrl || (fileId ? `https://drive.google.com/uc?export=download&id=${fileId}` : undefined) || '#';
+
             return {
               fileName: f.fileName,
               fileSizeBytes: f.fileSizeBytes,
               mimeType: f.mimeType,
-              previewUrl: up?.previewUrl || f.previewUrl,
-              downloadUrl: up?.downloadUrl || up?.fileUrl || '#',
-              driveFileId: up?.fileId,
-              driveUrl: up?.fileUrl,
+              previewUrl,
+              downloadUrl,
+              driveFileId: fileId,
+              driveUrl: fileUrl,
               folderName: currentUser.displayName,
               folderPath: `Google Drive / ${selectedTopic.title} / ${currentUser.displayName} /`,
               subTaskId: f.subTaskId,

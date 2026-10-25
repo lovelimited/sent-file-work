@@ -99,23 +99,42 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       window.open((file as any).driveUrl, '_blank');
       return;
     }
-    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nเอกสารผลงานวิชาการ: ${file.fileName}\nหัวข้องาน: ${topicTitle}\nครูผู้จัดทำ: ${teacherName} (${teacherDepartment})\nวันเวลา: ${new Date().toLocaleString('th-TH')}\n\nเอกสารบันทึกในระบบส่งงานวิชาการและคลัง Google Drive โรงเรียนสารสาสน์วิเทศราชพฤกษ์`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.fileName.includes('.') ? file.fileName : `${file.fileName}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (driveId) {
+      window.open(`https://drive.google.com/uc?export=download&id=${driveId}`, '_blank');
+      return;
+    }
+    if (file.previewUrl && file.previewUrl.startsWith('blob:')) {
+      const a = document.createElement('a');
+      a.href = file.previewUrl;
+      a.download = file.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
 
     Swal.fire({
-      title: 'ดาวน์โหลดเอกสารเรียบร้อย',
-      html: `ไฟล์: <b>${file.fileName}</b><br/><span class="text-xs text-slate-500">บันทึกสำเนาลงในเครื่องของคุณแล้ว</span>`,
-      icon: 'success',
-      timer: 1800,
-      showConfirmButton: false
+      title: 'ข้อมูลเอกสารผลงาน',
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-700">
+          <p><strong>ชื่อไฟล์:</strong> ${file.fileName}</p>
+          <p><strong>ผู้ส่ง:</strong> ${teacherName} (${teacherDepartment})</p>
+          <p><strong>หัวข้องาน:</strong> ${topicTitle}</p>
+          <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
+            📁 ที่อยู่ไฟล์ใน Drive: <b>${file.folderPath || `Google Drive / ${topicTitle} / ${teacherName} /`}</b>
+          </div>
+          <p class="text-slate-500">กรุณาเปิดดูหรือดาวน์โหลดไฟล์ต้นฉบับผ่าน Google Drive ของสถาบัน</p>
+        </div>
+      `,
+      icon: 'info',
+      confirmButtonText: 'เปิดโฟลเดอร์ใน Google Drive',
+      showCancelButton: true,
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#059669'
+    }).then(r => {
+      if (r.isConfirmed) {
+        window.open((file as any).driveUrl || 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd', '_blank');
+      }
     });
   };
 
@@ -162,33 +181,6 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           {/* Controls: Zoom, Pages, Print, Download, Close */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             
-            {/* Page Navigator */}
-            {!isImage && (
-              <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl px-1.5 py-1 text-xs text-slate-300 mr-1">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="p-1 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="หน้าก่อนหน้า"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="px-2 font-mono font-semibold text-[11px]">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="p-1 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="หน้าถัดไป"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
             {/* Zoom Controls */}
             <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl px-1 py-1 text-xs text-slate-300">
               <button
@@ -245,7 +237,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               type="button"
               onClick={handleDownload}
               className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
-              title="ดาวน์โหลดสำเนาเก็บไว้ในเครื่อง"
+              title="ดาวน์โหลดสำเนาไฟล์นี้"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">ดาวน์โหลด</span>
@@ -274,11 +266,11 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           </div>
         </div>
 
-        {/* Viewer Content Canvas (Scrollable Document Paper Area) */}
+        {/* Viewer Content Canvas */}
         <div className="flex-1 bg-slate-950 overflow-y-auto p-4 sm:p-8 flex justify-center items-start scrollbar-thin">
           
           <div 
-            className="transition-transform duration-200 origin-top flex flex-col items-center"
+            className="transition-transform duration-200 origin-top flex flex-col items-center w-full"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
             {/* Real Google Drive Embedded Viewer */}
@@ -344,240 +336,96 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </p>
               </div>
             ) : (
-              /* High-Fidelity A4 Paper Document Canvas (แบบฟอร์มเอกสารวิชาการทางการ) */
-              <div className="w-[794px] min-h-[1123px] bg-white text-slate-900 rounded-lg shadow-2xl p-12 sm:p-16 border border-slate-300 font-sans relative flex flex-col justify-between select-text">
+              /* Genuine File Details & Destination Card (ตรงตามไฟล์ที่เปิดทุกประการ) */
+              <div className="w-full max-w-2xl bg-slate-900 rounded-3xl shadow-2xl p-8 border border-slate-800 text-white space-y-6">
                 
-                {/* Official Document Watermark */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
-                  <div className="text-9xl font-black rotate-[-30deg]">ACADEMIC</div>
-                </div>
-
-                {/* Document Body */}
-                <div className="space-y-6 relative z-10">
-                  
-                  {/* Official Header */}
-                  <div className="text-center border-b-2 border-slate-800 pb-5 space-y-1">
-                    <div className="w-16 h-16 mx-auto mb-2 rounded-full border-2 border-slate-800 flex items-center justify-center p-1 bg-slate-50">
-                      <ShieldCheck className="w-10 h-10 text-slate-800" />
+                {/* File Header */}
+                <div className="flex items-start gap-4 border-b border-slate-800 pb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center font-black text-xl uppercase flex-shrink-0">
+                    {fileExt}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg font-bold text-white break-all">
+                        {file.fileName}
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        {(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
+                      </span>
                     </div>
-                    <p className="text-xs font-bold text-slate-600 tracking-wider">
-                      สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ
-                    </p>
-                    <h1 className="text-lg font-black text-slate-900 tracking-tight">
-                      โรงเรียนสารสาสน์วิเทศราชพฤกษ์ • ฝ่ายบริหารวิชาการ
-                    </h1>
-                    <p className="text-xs font-semibold text-slate-700">
-                      เอกสารตรวจสอบและรับรองผลงานวิชาการ ประจำภาคเรียนที่ 1 ปีการศึกษา 2569
+                    <p className="text-xs text-slate-400 mt-1">
+                      ประเภทไฟล์: <span className="font-mono text-slate-300">{file.mimeType || fileExt.toUpperCase()}</span>
                     </p>
                   </div>
-
-                  {/* Document Meta Table */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">ชื่อหัวข้องานที่ส่ง:</span>
-                      <strong className="text-slate-900 text-sm block mt-0.5">{topicTitle}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">รายการงานย่อยที่ตรวจ:</span>
-                      <strong className="text-purple-700 text-sm block mt-0.5">
-                        {file.subTaskTitle || 'เอกสารประกอบหลัก'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">คุณครูผู้จัดทำ:</span>
-                      <span className="text-slate-800 font-medium block mt-0.5">{teacherName}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">กลุ่มสาระการเรียนรู้:</span>
-                      <span className="text-slate-800 font-medium block mt-0.5">{teacherDepartment}</span>
-                    </div>
-                  </div>
-
-                  {/* PAGE 1 CONTENT */}
-                  {currentPage === 1 && (
-                    <div className="space-y-5 text-xs leading-relaxed text-slate-800">
-                      <div className="border-l-4 border-blue-600 pl-3">
-                        <h2 className="text-sm font-bold text-slate-900">
-                          ส่วนที่ 1: รายละเอียดเอกสารและสถานะการจัดเก็บบน Google Drive
-                        </h2>
-                        <p className="text-[11px] text-slate-500">
-                          ไฟล์: <span className="font-mono text-blue-700">{file.fileName}</span>
-                        </p>
-                      </div>
-
-                      <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
-                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <ShieldCheck className="w-6 h-6 text-emerald-600 flex-shrink-0" />
-                            <div>
-                              <p className="font-bold text-xs">สถานะ: ลงทะเบียนเข้าสู่ระบบสารบรรณและ Google Drive แล้ว</p>
-                              <p className="text-[11px] text-emerald-700 font-mono mt-0.5">
-                                ปลายทาง: Google Drive / {topicTitle} / [{teacherName}] {file.fileName}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px] border border-emerald-300">
-                            VERIFIED
-                          </span>
-                        </div>
-
-                        <h3 className="font-bold text-slate-900 pt-1">ข้อมูลจำเพาะของไฟล์เอกสาร (File Specification)</h3>
-                        <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-slate-500 block text-[10px]">ชื่อไฟล์ต้นฉบับ:</span>
-                            <strong className="text-slate-800 font-mono break-all">{file.fileName}</strong>
-                          </div>
-                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-slate-500 block text-[10px]">ขนาดไฟล์:</span>
-                            <strong className="text-slate-800">{(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB ({file.fileSizeBytes.toLocaleString()} ไบต์)</strong>
-                          </div>
-                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-slate-500 block text-[10px]">รูปแบบไฟล์ (MIME Type):</span>
-                            <strong className="text-slate-800 font-mono">{file.mimeType || fileExt.toUpperCase()}</strong>
-                          </div>
-                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-slate-500 block text-[10px]">Google Drive Root:</span>
-                            <strong className="text-slate-800 font-mono text-[10px]">1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd</strong>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 flex items-center gap-3">
-                          <a
-                            href={(file as any).driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-                          >
-                            <FolderOpen className="w-4 h-4" />
-                            <span>เปิดดูโฟลเดอร์ใน Google Drive</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                          <button
-                            type="button"
-                            onClick={handleDownload}
-                            className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-center text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-                          >
-                            <Download className="w-4 h-4" />
-                            <span>ดาวน์โหลดเอกสารจริง</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PAGE 2 CONTENT */}
-                  {currentPage === 2 && (
-                    <div className="space-y-5 text-xs leading-relaxed text-slate-800">
-                      <div className="border-l-4 border-indigo-600 pl-3">
-                        <h2 className="text-sm font-bold text-slate-900">
-                          ส่วนที่ 2: มาตรฐานการประเมินและเกณฑ์คุณภาพผลงานวิชาการ (Rubrics)
-                        </h2>
-                        <p className="text-[11px] text-slate-500">
-                          เกณฑ์ประเมินเอกสารวิชาการ โรงเรียนสารสาสน์วิเทศราชพฤกษ์
-                        </p>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                          <p>• <strong>หัวข้อการประเมิน:</strong> {topicTitle}</p>
-                          <p>• <strong>หมวดหมู่งานย่อย:</strong> {file.subTaskTitle || 'เอกสารประกอบหลัก'}</p>
-                          <p>• <strong>กลุ่มสาระการเรียนรู้:</strong> {teacherDepartment}</p>
-                        </div>
-
-                        <h3 className="font-bold text-slate-900 pt-2">เกณฑ์การพิจารณาตรวจสอบของฝ่ายวิชาการ</h3>
-                        <table className="w-full border-collapse border border-slate-300 text-[11px]">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-800 font-bold">
-                              <th className="border border-slate-300 p-2 text-left">ประเด็นการประเมิน</th>
-                              <th className="border border-slate-300 p-2 text-center">ระดับคุณภาพ</th>
-                              <th className="border border-slate-300 p-2 text-center">เกณฑ์การผ่าน</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td className="border border-slate-300 p-2 font-medium">1. ความถูกต้องและสมบูรณ์ของเอกสาร</td>
-                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
-                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
-                            </tr>
-                            <tr>
-                              <td className="border border-slate-300 p-2 font-medium">2. ความสอดคล้องกับหลักสูตรและมาตรฐานการเรียนรู้</td>
-                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
-                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
-                            </tr>
-                            <tr>
-                              <td className="border border-slate-300 p-2 font-medium">3. การจัดเก็บไฟล์และการเชื่อมโยงข้อมูลใน Google Drive</td>
-                              <td className="border border-slate-300 p-2 text-center">ดีเยี่ยม (4/4)</td>
-                              <td className="border border-slate-300 p-2 text-center text-emerald-700 font-bold">ผ่านเกณฑ์</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PAGE 3 CONTENT */}
-                  {currentPage === 3 && (
-                    <div className="space-y-5 text-xs leading-relaxed text-slate-800">
-                      <div className="border-l-4 border-emerald-600 pl-3">
-                        <h2 className="text-sm font-bold text-slate-900">
-                          ส่วนที่ 3: บันทึกผลหลังการสอนและการตรวจรับรองจากฝ่ายบริหาร
-                        </h2>
-                        <p className="text-[11px] text-slate-500">
-                          สรุปผลสัมฤทธิ์และผลการรับรองคุณภาพเอกสาร
-                        </p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                          <h3 className="font-bold text-slate-900">3.1 ผลการจัดกิจกรรมการเรียนรู้</h3>
-                          <p className="text-slate-700">
-                            นักเรียนในรายวิชามีความสนใจและกระตือรือร้นในการทำกิจกรรมกลุ่ม สามารถสร้างสรรค์ชิ้นงานได้ตามเกณฑ์ตัวชี้วัด คิดเป็นร้อยละ 94.2 ของผู้เรียนทั้งหมด มีนักเรียนที่ต้องพัฒนาเพิ่มเติม 2 คน โดยครูได้จัดสอนเสริมในคาบลดเวลาเรียนเพิ่มเวลารู้
-                          </p>
-                        </div>
-
-                        {/* Signatures & Certification Box */}
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
-                          
-                          {/* Teacher Signature */}
-                          <div className="text-center p-4 border border-dashed border-slate-300 rounded-xl space-y-2">
-                            <span className="text-[11px] text-slate-500 block">ลงชื่อครูผู้จัดทำ</span>
-                            <div className="h-10 flex items-center justify-center font-serif italic text-blue-800 text-sm">
-                              {teacherName}
-                            </div>
-                            <p className="font-bold text-slate-800">({teacherName})</p>
-                            <p className="text-[10px] text-slate-500">ตำแหน่ง ครู กลุ่มสาระการเรียนรู้{teacherDepartment}</p>
-                          </div>
-
-                          {/* Academic Admin Certification Stamp */}
-                          <div className="text-center p-4 bg-emerald-50/50 border border-emerald-300 rounded-xl space-y-2 relative">
-                            <div className="absolute top-2 right-2">
-                              <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> รับรองแล้ว
-                              </span>
-                            </div>
-
-                            <span className="text-[11px] text-emerald-800 font-bold block">
-                              ผลการตรวจรับรองของฝ่ายบริหารวิชาการ
-                            </span>
-                            <div className="h-10 flex items-center justify-center font-serif italic text-slate-800 text-sm">
-                              กฤตพจน์ แอดมินบริหาร
-                            </div>
-                            <p className="font-bold text-slate-800">(นายกฤตพจน์ แอดมินบริหาร)</p>
-                            <p className="text-[10px] text-slate-500">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</p>
-                          </div>
-
-                        </div>
-
-                      </div>
-                    </div>
-                  )}
-
                 </div>
 
-                {/* Document Footer */}
-                <div className="border-t border-slate-200 pt-4 flex items-center justify-between text-[10px] text-slate-400 relative z-10">
-                  <span>ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารสำหรับผู้บริหาร (Electronic Academic Repository)</span>
-                  <span className="font-mono">หน้าที่ {currentPage} / {totalPages}</span>
+                {/* Details Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-1">
+                    <span className="text-slate-400 block text-[11px]">หัวข้อภาระงาน:</span>
+                    <strong className="text-white block text-sm">{topicTitle}</strong>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-1">
+                    <span className="text-slate-400 block text-[11px]">งานย่อยที่แนบ:</span>
+                    <strong className="text-purple-300 block text-sm">
+                      {file.subTaskTitle || 'เอกสารประกอบหลัก'}
+                    </strong>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-1">
+                    <span className="text-slate-400 block text-[11px]">คุณครูผู้จัดทำ:</span>
+                    <strong className="text-white block">{teacherName}</strong>
+                    <span className="text-slate-400 text-[11px] block">{teacherDepartment}</span>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-1">
+                    <span className="text-slate-400 block text-[11px]">สถานะการจัดเก็บบนคลาวด์:</span>
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-semibold pt-0.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Google Drive ซิงค์เรียบร้อย</span>
+                    </div>
+                    <span className="text-slate-400 text-[10px] block">
+                      {file.uploadedAt ? new Date(file.uploadedAt).toLocaleString('th-TH') : 'บันทึกในระบบแล้ว'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Google Drive Destination Box */}
+                <div className="p-4 bg-blue-950/40 rounded-2xl border border-blue-800/50 space-y-2">
+                  <div className="flex items-center gap-2 text-blue-400 text-xs font-bold">
+                    <FolderOpen className="w-4 h-4" />
+                    <span>ตำแหน่งโฟลเดอร์ใน Google Drive:</span>
+                  </div>
+                  <p className="font-mono text-xs text-blue-200 bg-slate-900/90 p-3 rounded-xl border border-slate-800 break-all select-all">
+                    📁 Google Drive / {topicTitle} / {teacherName} / {file.fileName}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    ไฟล์นี้ถูกจัดเก็บแยกไว้ในโฟลเดอร์ชื่อของคุณครูผู้ส่งโดยเฉพาะ สามารถคลิกเปิดดูหรือดาวน์โหลดได้ทันที
+                  </p>
+                </div>
+
+                {/* Direct Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                  <a
+                    href={(file as any).driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition-all"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>เปิดโฟลเดอร์ใน Google Drive</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-950 transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>ดาวน์โหลดไฟล์นี้</span>
+                  </button>
                 </div>
 
               </div>

@@ -201,33 +201,32 @@ export const LibraryPage: React.FC = () => {
       window.open(file.driveUrl, '_blank');
       return;
     }
-    const fileName = file.fileName || file.title || 'academic_document.txt';
-    const content = `โรงเรียนสารสาสน์วิเทศราชพฤกษ์\nฝ่ายบริหารวิชาการ\n\nเอกสาร: ${fileName}\nโฟลเดอร์จัดเก็บ: Google Drive / ${folderName || file.folderName || 'คลังส่วนกลาง'} /\nGoogle Drive Root ID: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd\nวันที่ดาวน์โหลด: ${new Date().toLocaleString('th-TH')}\nสถานะ: ตรวจสอบและรับรองสิทธิ์ผ่านระบบส่งงานวิชาการเรียบร้อยแล้ว`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName.includes('.') ? fileName : `${fileName}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
+    if (file.driveFileId) {
+      window.open(`https://drive.google.com/uc?export=download&id=${file.driveFileId}`, '_blank');
+      return;
+    }
+    const fileName = file.fileName || file.title || 'academic_document';
     Swal.fire({
-      title: 'ดาวน์โหลดเอกสารเรียบร้อย',
+      title: 'ข้อมูลเอกสาร',
       html: `
         <div class="text-left text-xs space-y-2 text-slate-700">
           <p><strong>ชื่อไฟล์:</strong> ${fileName}</p>
           <div class="p-2.5 bg-blue-50 rounded-xl border border-blue-200 text-blue-900">
-            <p class="font-bold">📁 โฟลเดอร์ที่เก็บตามชื่องาน:</p>
+            <p class="font-bold">📁 โฟลเดอร์ใน Google Drive:</p>
             <p class="font-mono text-[11px] mt-0.5">Google Drive / ${folderName || file.folderName || 'คลังส่วนกลาง'} /</p>
           </div>
-          <p class="text-[11px] text-slate-500">Google Drive Root: 1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd</p>
-          <p class="text-emerald-600 font-semibold">✓ บันทึกสำเนาไฟล์ลงในเครื่องเรียบร้อยแล้ว</p>
+          <p class="text-slate-500">กรุณาเปิดดูหรือดาวน์โหลดไฟล์ต้นฉบับผ่าน Google Drive ของสถาบัน</p>
         </div>
       `,
-      icon: 'success',
-      confirmButtonColor: '#2563eb'
+      icon: 'info',
+      confirmButtonText: 'เปิด Google Drive',
+      showCancelButton: true,
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#059669'
+    }).then(res => {
+      if (res.isConfirmed) {
+        window.open(file.driveUrl || 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd', '_blank');
+      }
     });
   };
 
