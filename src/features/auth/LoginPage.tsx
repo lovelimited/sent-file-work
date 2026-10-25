@@ -10,13 +10,9 @@ import {
   Eye, 
   EyeOff, 
   Loader2, 
-  Sparkles, 
   ArrowRight, 
   Check,
-  ShieldCheck,
-  Orbit,
-  FileCheck2,
-  TableProperties
+  ShieldCheck
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -290,71 +286,25 @@ export const LoginPage: React.FC = () => {
       <div className="relative z-20 w-full max-w-4xl my-auto bg-white/95 backdrop-blur-2xl border border-white/90 shadow-[0_20px_60px_-15px_rgba(30,58,138,0.18)] rounded-3xl overflow-hidden flex flex-col md:flex-row transition-all">
         
         {/* ---------------------------------------------------- */}
-        {/* LEFT PANEL: Identity, Mascot, and Branding           */}
+        {/* LEFT PANEL: Identity and Branding                    */}
         {/* ---------------------------------------------------- */}
-        <div className="md:w-5/12 bg-gradient-to-br from-sky-50/90 via-indigo-50/70 to-blue-50/80 p-5 sm:p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-200/80">
-          
-          <div className="space-y-3">
-            {/* Top Avatars: School Logo + 3D Mascot */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1 flex items-center justify-center flex-shrink-0">
-                <img 
-                  src="/logo.jpg" 
-                  alt="School Logo" 
-                  className="w-full h-full object-contain" 
-                />
-              </div>
-              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1 flex items-center justify-center flex-shrink-0 animate-space-float">
-                <img 
-                  src="/astronaut-3d.jpg" 
-                  alt="3D Space Mascot" 
-                  className="w-full h-full object-cover rounded-xl" 
-                />
-              </div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[11px] font-black ml-auto shadow-2xs">
-                <Sparkles className="w-3 h-3 text-blue-600" />
-                3D Space
-              </span>
-            </div>
-
-            <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug">
-                {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'}
-              </h1>
-              <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-                ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารวิชาการ
-              </p>
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 border border-slate-200/80 text-xs font-bold text-slate-700 shadow-2xs">
-              <Orbit className="w-3.5 h-3.5 text-sky-600" />
-              <span>ปีการศึกษา {settings.academicYear} / {settings.semester}</span>
-            </div>
-
-            {/* Feature Highlights */}
-            <div className="space-y-1.5 pt-0.5">
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-700 shadow-2xs">
-                <FileCheck2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                <span>ส่งงาน แผนการสอน และประเมินผล</span>
-              </div>
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-700 shadow-2xs">
-                <TableProperties className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                <span>Google Sheets Sync อัตโนมัติ</span>
-              </div>
-            </div>
+        <div className="md:w-5/12 bg-gradient-to-br from-sky-50/90 via-indigo-50/70 to-blue-50/80 p-6 sm:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-slate-200/80">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1.5 flex items-center justify-center mb-5">
+            <img 
+              src="/logo.jpg" 
+              alt="School Logo" 
+              className="w-full h-full object-contain" 
+            />
           </div>
 
-          {/* Developer Credit Signature */}
-          <div className="pt-2.5 mt-2 border-t border-slate-200/80 flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-xs flex-shrink-0">
-              ก
-            </div>
-            <div className="text-left overflow-hidden">
-              <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">ออกแบบและพัฒนาระบบโดย</p>
-              <p className="text-xs sm:text-sm font-black text-slate-800 truncate leading-tight mt-0.5">ม.กฤตพจน์  แก้วกา</p>
-            </div>
+          <div>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
+              {settings.schoolName || 'โรงเรียนสารสาสน์วิเทศราชพฤกษ์'}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1.5 leading-relaxed">
+              ระบบส่งงานครู ตรวจประเมิน และคลังเอกสารวิชาการ
+            </p>
           </div>
-
         </div>
 
         {/* ---------------------------------------------------- */}
@@ -410,7 +360,7 @@ export const LoginPage: React.FC = () => {
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="เช่น drive.limited@gmail.com หรือชื่อผู้ใช้"
+                    placeholder="เช่น teacher@school.ac.th หรือชื่อผู้ใช้งาน"
                     className="w-full text-sm rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 sm:py-3 text-slate-900 bg-white hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-2xs"
                     required
                   />
@@ -453,8 +403,8 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Remember Me & Admin Note */}
-              <div className="flex items-center justify-between pt-0.5">
+              {/* Remember Me */}
+              <div className="flex items-center pt-0.5">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -464,9 +414,6 @@ export const LoginPage: React.FC = () => {
                   />
                   <span className="text-xs sm:text-sm text-slate-600 font-medium">จดจำการเข้าใช้</span>
                 </label>
-                <span className="text-xs text-slate-400 font-medium">
-                  Admin: drive.limited@gmail.com
-                </span>
               </div>
 
               {/* Side-by-Side Action Buttons (Saves Vertical Space & Looks Bold!) */}
