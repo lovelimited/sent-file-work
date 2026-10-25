@@ -16,12 +16,27 @@ export interface SheetsSyncPayload {
   triggerReason: string;
   kpiStats: {
     totalTeachers: number;
+    totalAdmins: number;
+    totalUsers: number;
     totalTopics: number;
     totalSubmissions: number;
     passedSubmissions: number;
     revisionRequiredCount: number;
     overallCompletionRate: number;
   };
+  teachersRoster?: Array<{
+    no: number;
+    displayName: string;
+    email: string;
+    username: string;
+    department: string;
+    subjects: string;
+    grades: string;
+    phone: string;
+    status: string;
+    submittedCount: number;
+    passedCount: number;
+  }>;
   rows: Array<{
     no: number;
     teacherName: string;
@@ -57,6 +72,7 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
     const submissions = getSubmissions();
     const users = getUsers();
     const teachers = users.filter(u => u.role === 'teacher' && u.status === 'active');
+    const admins = users.filter(u => u.role === 'admin' && u.status === 'active');
 
     const totalSubmissions = submissions.length;
     const passedCount = submissions.filter(s => s.status === 'passed').length;
@@ -64,6 +80,25 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
     
     let totalAssignedWorks = teachers.length * topics.length;
     let totalCompletedWorks = 0;
+
+    // Build teachers roster for dedicated sheet tab
+    const teachersRoster = teachers.map((t, idx) => {
+      const teacherSubs = submissions.filter(s => s.teacherUid === t.uid);
+      const passedSubs = teacherSubs.filter(s => s.status === 'passed');
+      return {
+        no: idx + 1,
+        displayName: t.displayName,
+        email: t.email,
+        username: t.username || '-',
+        department: t.learningAreaName || 'วิชาการ',
+        subjects: t.subjects?.map(s => s.name).join(', ') || 'วิชาทั่วไป',
+        grades: t.gradeLevels?.join(', ') || '-',
+        phone: t.phone || '-',
+        status: t.status === 'active' ? 'เปิดใช้งาน' : 'ระงับบัญชี',
+        submittedCount: teacherSubs.length,
+        passedCount: passedSubs.length
+      };
+    });
 
     const reportRows: SheetsSyncPayload['rows'] = [];
     let rowNumber = 1;
@@ -128,12 +163,15 @@ export async function syncDataToGoogleSheets(triggerReason: string = 'AUTO_SYNC'
       triggerReason,
       kpiStats: {
         totalTeachers: teachers.length,
+        totalAdmins: admins.length,
+        totalUsers: teachers.length + admins.length,
         totalTopics: topics.length,
         totalSubmissions,
         passedSubmissions: passedCount,
         revisionRequiredCount: revisionCount,
         overallCompletionRate: overallRate
       },
+      teachersRoster,
       rows: reportRows
     };
 

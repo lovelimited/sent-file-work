@@ -78,6 +78,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const teachers = users.filter(u => u.role === 'teacher');
+  const admins = users.filter(u => u.role === 'admin');
   const evaluatedCount = submissions.filter(s => s.status === 'passed' || s.status === 'revision_required' || s.status === 'rejected').length;
   const evaluationRate = submissions.length > 0 ? Math.round((evaluatedCount / submissions.length) * 100) : 0;
 
@@ -150,13 +151,20 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">จำนวนครูในระบบ</span>
+            <span className="text-xs font-semibold text-slate-500">จำนวนครูผู้สอนในระบบ</span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">{teachers.length}</p>
-          <p className="text-[11px] text-slate-400 mt-1">บัญชีครูประจำการ</p>
+          <div className="flex items-baseline gap-2 mt-2">
+            <p className="text-2xl font-bold text-slate-900">{teachers.length}</p>
+            <span className="text-xs text-slate-500 font-medium">ท่าน</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-semibold">ไม่รวม Admin</span>
+            <span>•</span>
+            <span className="text-slate-600 font-medium">{admins.length} แอดมิน</span>
+          </p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover-lift">

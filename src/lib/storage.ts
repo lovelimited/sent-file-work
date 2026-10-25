@@ -136,6 +136,70 @@ export function createUser(user: User, actor?: User): User {
   return user;
 }
 
+export function deleteUser(uid: string, actor?: User): boolean {
+  const users = getUsers();
+  const index = users.findIndex(u => u.uid === uid);
+  if (index === -1) return false;
+
+  const deletedUser = users[index];
+  const newUsers = users.filter(u => u.uid !== uid);
+  setItem(STORAGE_KEYS.USERS, newUsers);
+
+  // Clean their submissions from storage
+  const submissions = getSubmissions();
+  const newSubmissions = submissions.filter(s => s.teacherUid !== uid);
+  setItem(STORAGE_KEYS.SUBMISSIONS, newSubmissions);
+
+  if (actor) {
+    logActivity('DELETE_USER', 'User', uid, actor, { 
+      name: deletedUser.displayName, 
+      email: deletedUser.email,
+      role: deletedUser.role 
+    });
+  }
+
+  notifyDataChanged('USER_DELETED');
+  return true;
+}
+
+export function deleteDemoTeachers(actor?: User): { count: number; names: string[] } {
+  const users = getUsers();
+  // Demo teachers are teacher accounts with mock IDs or names
+  const demoUsers = users.filter(u => 
+    u.role === 'teacher' && (
+      u.uid.startsWith('teacher-') || 
+      u.email.endsWith('@school.ac.th') ||
+      u.displayName.includes('ครูสมศรี') ||
+      u.displayName.includes('ครูสมชาย') ||
+      u.displayName.includes('ครูมานะ') ||
+      u.displayName.includes('ครูสุดา') ||
+      u.displayName.includes('ครูอภิสิทธิ์')
+    )
+  );
+
+  const demoUids = new Set(demoUsers.map(u => u.uid));
+  const remainingUsers = users.filter(u => !demoUids.has(u.uid));
+  setItem(STORAGE_KEYS.USERS, remainingUsers);
+
+  // Clean demo submissions
+  const submissions = getSubmissions();
+  const remainingSubmissions = submissions.filter(s => !demoUids.has(s.teacherUid));
+  setItem(STORAGE_KEYS.SUBMISSIONS, remainingSubmissions);
+
+  if (actor) {
+    logActivity('DELETE_DEMO_TEACHERS', 'User', 'batch', actor, {
+      count: demoUsers.length,
+      names: demoUsers.map(u => u.displayName)
+    });
+  }
+
+  notifyDataChanged('DEMO_USERS_DELETED');
+  return {
+    count: demoUsers.length,
+    names: demoUsers.map(u => u.displayName)
+  };
+}
+
 // Submissions
 export function getSubmissions(): Submission[] {
   return getItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, initialSubmissions);
