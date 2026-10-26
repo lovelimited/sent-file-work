@@ -197,7 +197,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     let user = getUserByEmail(trimmedId) || getUserByUsername(trimmedId);
-    const isMasterAdminId = trimmedId.toLowerCase() === 'admin' || trimmedId.toLowerCase() === 'drive.limited@gmail.com';
+    const isMasterAdminId = trimmedId.toLowerCase() === 'admin' || 
+      trimmedId.toLowerCase() === 'drive.limited@gmail.com' ||
+      trimmedId.toLowerCase() === 'krittapot.kpmg@gmail.com';
 
     let isPasswordValid = false;
     let fbUserResult: any = null;
@@ -305,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Auto-detect Admin rights for Krittapot or drive.limited
       const isKrittapot = (
         email === 'drive.limited@gmail.com' ||
+        email === 'krittapot.kpmg@gmail.com' ||
         displayName.includes('กฤตพจน์') ||
         displayName.toLowerCase().includes('krittapot')
       );
