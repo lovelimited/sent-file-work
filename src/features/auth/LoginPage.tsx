@@ -105,6 +105,39 @@ export const LoginPage: React.FC = () => {
 
   // Handle Google Sign In
   const handleGoogleSignIn = async () => {
+    const isInAppBrowser = typeof navigator !== 'undefined' && /Line\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
+
+    if (isInAppBrowser) {
+      Swal.fire({
+        title: 'เปิดด้วย Safari / Chrome',
+        html: `
+          <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #334155;">
+            <p style="margin-bottom: 8px;"><b>สาเหตุ:</b> ระบบ Google ไม่อนุญาตให้ล็อกอินผ่านเบราว์เซอร์ภายในแอป LINE โดยตรง (จะพบข้อผิดพลาด Unable to process request due to missing initial state)</p>
+            <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; color: #92400e;">
+              <b>วิธีแก้ที่ง่ายที่สุด:</b>
+              <ol style="padding-left: 20px; margin: 4px 0 0 0;">
+                <li>กดปุ่ม <b>"🌐 เปิดใน Safari / Chrome"</b> ด้านล่างนี้ หรือ</li>
+                <li>กดปุ่ม <b>[...]</b> ที่มุมขวาล่างของ LINE แล้วเลือก <b>"เปิดด้วยเบราว์เซอร์เริ่มต้น"</b></li>
+              </ol>
+            </div>
+            <p style="font-size: 12px; color: #64748b; margin: 0;">* หรือคุณครูสามารถเข้าสู่ระบบด้วย <b>อีเมล และรหัสผ่าน</b> ในหน้านี้ได้ทันทีโดยไม่ต้องเปิด Safari ครับ</p>
+          </div>
+        `,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: '🌐 เปิดใน Safari / Chrome ทันที',
+        cancelButtonText: 'ใช้รหัสผ่านในหน้านี้',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#64748b'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const sep = window.location.href.includes('?') ? '&' : '?';
+          window.location.href = window.location.href + sep + 'openExternalBrowser=1';
+        }
+      });
+      return;
+    }
+
     setIsLoggingIn(true);
     const res = await loginWithGoogle();
     setIsLoggingIn(false);
@@ -341,6 +374,25 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* In-App Browser (LINE / FB) Warning Banner */}
+          {typeof navigator !== 'undefined' && /Line\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent) && (
+            <div className="mb-3 p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📱</span>
+                <div>
+                  <p className="font-bold">เปิดจากแอป LINE</p>
+                  <p className="text-[11px] text-amber-700">แนะนำเปิดใน Safari เพื่อล็อกอินด้วย Google ได้ราบรื่น</p>
+                </div>
+              </div>
+              <a
+                href={window.location.href.includes('?') ? `${window.location.href}&openExternalBrowser=1` : `${window.location.href}?openExternalBrowser=1`}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-2xs transition-all flex-shrink-0"
+              >
+                เปิดใน Safari
+              </a>
+            </div>
+          )}
 
           {/* TAB 1: LOGIN FORM (BOLD, READABLE, FULL SIZED) */}
           {activeTab === 'login' && (
