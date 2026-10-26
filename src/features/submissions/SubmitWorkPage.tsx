@@ -81,6 +81,7 @@ export const SubmitWorkPage: React.FC = () => {
 
   const selectedTopic = topics.find(t => t.id === selectedTopicId) || topics[0];
   const existingSubmission = selectedTopic ? mySubmissionsByTopic[selectedTopic.id] : undefined;
+  const subTasks = selectedTopic?.subTasks || [];
 
   useEffect(() => {
     if (preselectedTopicId && topics.some(t => t.id === preselectedTopicId)) {
@@ -93,6 +94,8 @@ export const SubmitWorkPage: React.FC = () => {
     if (selectedTopic) {
       setTitle(`${selectedTopic.title} - ${currentUser?.displayName || 'ครูผู้สอน'}`);
       setNote('ส่งเอกสารหลักฐานครบถ้วนตามข้อกำหนด พร้อมรับการตรวจรับรอง');
+      // Clear attached files when switching topic to avoid mixing files
+      setFiles([]);
     }
   }, [selectedTopicId]);
 
@@ -114,8 +117,46 @@ export const SubmitWorkPage: React.FC = () => {
 
   const remaining = selectedTopic ? getRemainingTime(selectedTopic.dueDate) : null;
 
-  // File handling
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File handling for specific sub-task
+  const handleSubTaskFileChange = (e: React.ChangeEvent<HTMLInputElement>, subTask: TopicSubTask) => {
+    if (!e.target.files || !selectedTopic) return;
+    const incomingFiles = Array.from(e.target.files);
+    const allowedExts = selectedTopic.allowedFileExtensions.map(ext => ext.toLowerCase());
+    const validFiles: typeof files = [];
+    const invalidFiles: string[] = [];
+
+    incomingFiles.forEach(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (allowedExts.includes(ext) || allowedExts.length === 0) {
+        validFiles.push({
+          fileObject: file,
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: file.type || 'application/octet-stream',
+          previewUrl: (file.type.startsWith('image/') || file.type === 'application/pdf') ? URL.createObjectURL(file) : undefined,
+          subTaskId: subTask.id,
+          subTaskTitle: subTask.title,
+        });
+      } else {
+        invalidFiles.push(file.name);
+      }
+    });
+
+    if (invalidFiles.length > 0) {
+      Swal.fire({
+        title: 'ประเภทไฟล์ไม่รองรับ',
+        text: `ไฟล์ที่เลือกไม่ตรงกับประเภทที่กำหนด (${allowedExts.join(', ')}): ${invalidFiles.join(', ')}`,
+        icon: 'warning',
+        confirmButtonColor: '#2563eb'
+      });
+    }
+
+    setFiles(prev => [...prev, ...validFiles]);
+    e.target.value = '';
+  };
+
+  // General File handling
+  const handleGeneralFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !selectedTopic) return;
     const incomingFiles = Array.from(e.target.files);
     const allowedExts = selectedTopic.allowedFileExtensions.map(ext => ext.toLowerCase());
@@ -146,34 +187,12 @@ export const SubmitWorkPage: React.FC = () => {
       });
     }
 
-    if (files.length + validFiles.length > (selectedTopic.maxFiles || 10)) {
-      Swal.fire({
-        title: 'เกินจำนวนไฟล์สูงสุด',
-        text: `แนบไฟล์ได้สูงสุด ${selectedTopic.maxFiles} ไฟล์`,
-        icon: 'warning',
-        confirmButtonColor: '#2563eb'
-      });
-      return;
-    }
-
     setFiles(prev => [...prev, ...validFiles]);
     e.target.value = '';
   };
 
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateFileSubTask = (fileIndex: number, subTaskId: string) => {
-    const subTask = selectedTopic?.subTasks?.find(s => s.id === subTaskId);
-    setFiles(prev => prev.map((f, i) => {
-      if (i !== fileIndex) return f;
-      return {
-        ...f,
-        subTaskId: subTaskId ? subTaskId : undefined,
-        subTaskTitle: subTask ? subTask.title : undefined,
-      };
-    }));
   };
 
   const handleAddLink = () => {
@@ -206,6 +225,37 @@ export const SubmitWorkPage: React.FC = () => {
     if (files.length === 0 && links.length === 0) {
       Swal.fire('กรุณาแนบไฟล์หรือลิงก์', 'กรุณาอัปโหลดเอกสารผลงานอย่างน้อย 1 ไฟล์', 'warning');
       return;
+    }
+
+    // Check if required subtasks are attached
+    if (selectedTopic.subTasks && selectedTopic.subTasks.length > 0) {
+      const requiredSubTasks = selectedTopic.subTasks.filter(st => st.isRequired);
+      const missingSubTasks = requiredSubTasks.filter(st => !files.some(f => f.subTaskId === st.id));
+
+      if (missingSubTasks.length > 0) {
+        const res = await Swal.fire({
+          title: 'ยังไม่ได้แนบไฟล์สำหรับงานย่อยจำเป็น',
+          html: `
+            <div class="text-left text-xs space-y-2 mt-2">
+              <p class="text-slate-700">หัวข้อนี้มีงานย่อยจำเป็นที่ยังไม่ได้แนบไฟล์:</p>
+              <ul class="list-disc pl-5 font-bold text-rose-600 space-y-1">
+                ${missingSubTasks.map(m => `<li>${m.title}</li>`).join('')}
+              </ul>
+              <p class="text-slate-500 pt-1">คุณครูต้องการส่งต่อทันที หรือกลับไปแนบไฟล์ให้ครบก่อนครับ?</p>
+            </div>
+          `,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'ยืนยันจะส่งต่อ',
+          cancelButtonText: 'กลับไปแนบไฟล์เพิ่ม',
+          confirmButtonColor: '#2563eb',
+          cancelButtonColor: '#64748b'
+        });
+
+        if (!res.isConfirmed) {
+          return;
+        }
+      }
     }
 
     executeSubmission();
@@ -377,7 +427,9 @@ export const SubmitWorkPage: React.FC = () => {
     );
   }
 
-  const subTasks = selectedTopic?.subTasks || [];
+  // Count how many subtasks have files attached
+  const attachedSubTaskIds = new Set(files.map(f => f.subTaskId).filter(Boolean));
+  const completedSubTasksCount = subTasks.filter(st => attachedSubTaskIds.has(st.id)).length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16">
@@ -390,7 +442,7 @@ export const SubmitWorkPage: React.FC = () => {
               ระบบส่งงานครูออนไลน์
             </span>
             <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500">ง่ายและสะดวกใน 3 ขั้นตอน</span>
+            <span className="text-xs text-slate-500">ส่งง่ายตามรายการงานย่อย</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <UploadCloud className="w-6 h-6 text-blue-600" />
@@ -525,30 +577,6 @@ export const SubmitWorkPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Friendly Subtasks Checklist */}
-                  {subTasks.length > 0 && (
-                    <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
-                      <p className="text-[11px] font-bold text-slate-700">
-                        📋 รายการงานย่อยที่ฝ่ายวิชาการแนะนำ ({subTasks.length} รายการ):
-                      </p>
-                      <ul className="space-y-1">
-                        {subTasks.map((st, i) => (
-                          <li key={st.id} className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                              {i + 1}
-                            </span>
-                            <span className="truncate">{st.title}</span>
-                            {st.isRequired && (
-                              <span className="text-[9px] text-rose-500 font-bold ml-auto flex-shrink-0">
-                                (จำเป็น)
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
                 </div>
               )}
 
@@ -561,8 +589,8 @@ export const SubmitWorkPage: React.FC = () => {
              ======================================================== */}
           <div className="lg:col-span-7 space-y-5">
 
-            {/* STEP 2: ATTACH FILES */}
-            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            {/* STEP 2: ATTACH FILES (SPLIT BY SUBTASK OR SINGLE DROPZONE) */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="w-7 h-7 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-xs">
@@ -570,103 +598,200 @@ export const SubmitWorkPage: React.FC = () => {
                   </span>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      แนบไฟล์เอกสารผลงาน
+                      {subTasks.length > 0 ? 'แนบไฟล์แยกตามงานย่อย' : 'แนบไฟล์เอกสารผลงาน'}
                     </h3>
                     <p className="text-[11px] text-slate-400">
-                      รองรับ PDF, Word, Excel, PowerPoint, รูปภาพ (สูงสุด {selectedTopic?.maxFiles || 5} ไฟล์)
+                      {subTasks.length > 0
+                        ? `หัวข้อนี้มี ${subTasks.length} งานย่อย (แนบครบแล้ว ${completedSubTasksCount}/${subTasks.length} รายการ)`
+                        : `รองรับ PDF, Word, Excel, PowerPoint, รูปภาพ (สูงสุด ${selectedTopic?.maxFiles || 5} ไฟล์)`
+                      }
                     </p>
                   </div>
                 </div>
                 <span className="text-[11px] font-semibold text-rose-500">* จำเป็น</span>
               </div>
 
-              {/* Single Clean Dropzone */}
-              <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 rounded-2xl p-6 text-center transition-all cursor-pointer relative bg-slate-50/40 group">
-                <input
-                  type="file"
-                  multiple
-                  accept={selectedTopic?.allowedFileExtensions.join(',') || '.pdf,.docx,.doc,.xlsx,.pptx'}
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์มาวางที่นี่
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      ไฟล์จะถูกนำไปจัดเก็บเข้าโฟลเดอร์ Google Drive ของคุณครูอัตโนมัติ
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attached Files List */}
-              {files.length > 0 && (
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span>ไฟล์ที่เลือกไว้ ({files.length} รายการ):</span>
-                    <button
-                      type="button"
-                      onClick={() => setFiles([])}
-                      className="text-[11px] text-slate-400 hover:text-rose-600 font-normal"
-                    >
-                      ลบไฟล์ทั้งหมด
-                    </button>
+              {/* Case A: Topic HAS Sub-Tasks -> Display each sub-task as a clear upload slot */}
+              {subTasks.length > 0 ? (
+                <div className="space-y-3.5">
+                  <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 text-xs text-blue-900 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span>กรุณากดปุ่ม <b>"แนบไฟล์"</b> ในแต่ละรายการงานย่อยด้านล่างนี้ได้โดยตรงครับ</span>
                   </div>
 
-                  <div className="space-y-2">
-                    {files.map((file, idx) => (
+                  {subTasks.map((st, idx) => {
+                    const subTaskFiles = files.filter(f => f.subTaskId === st.id);
+                    const isAttached = subTaskFiles.length > 0;
+
+                    return (
                       <div
-                        key={idx}
-                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
+                        key={st.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          isAttached
+                            ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200'
+                            : st.isRequired
+                            ? 'bg-white border-slate-200 hover:border-blue-400'
+                            : 'bg-slate-50/50 border-slate-200'
+                        }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold text-[10px]">
-                            {file.fileName.split('.').pop()?.toUpperCase() || 'FILE'}
-                          </div>
+                        {/* Sub-Task Header */}
+                        <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-slate-800 truncate" title={file.fileName}>
-                              {file.fileName}
-                            </p>
-                            <span className="text-[10px] text-slate-400">
-                              {(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-900">
+                                {st.title}
+                              </h4>
+                              {st.isRequired ? (
+                                <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                                  จำเป็นต้องส่ง *
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                  เพิ่มเติม (ถ้ามี)
+                                </span>
+                              )}
+                            </div>
+                            {st.description && (
+                              <p className="text-[11px] text-slate-500 mt-1 pl-7 leading-relaxed">
+                                {st.description}
+                              </p>
+                            )}
                           </div>
+
+                          {/* Status Badge */}
+                          {isAttached ? (
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-xl border border-emerald-300 flex items-center gap-1 flex-shrink-0">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>แนบแล้ว ({subTaskFiles.length})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-lg border border-slate-200 flex-shrink-0">
+                              ยังไม่ได้แนบ
+                            </span>
+                          )}
                         </div>
 
-                        {/* Optional Sub-task tag */}
-                        {subTasks.length > 0 && (
-                          <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
-                            <select
-                              value={file.subTaskId || ''}
-                              onChange={(e) => updateFileSubTask(idx, e.target.value)}
-                              className="text-[10px] font-medium py-1 px-2 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none"
-                            >
-                              <option value="">-- ไม่ระบุงานย่อย --</option>
-                              {subTasks.map((st, i) => (
-                                <option key={st.id} value={st.id}>
-                                  งานที่ {i + 1}: {st.title}
-                                </option>
-                              ))}
-                            </select>
+                        {/* Attached Files List for this sub-task */}
+                        {subTaskFiles.length > 0 && (
+                          <div className="space-y-1.5 pl-7 mb-2.5">
+                            {subTaskFiles.map((sf, sfi) => {
+                              const realIndex = files.findIndex(f => f === sf);
+                              return (
+                                <div
+                                  key={sfi}
+                                  className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-emerald-200 text-xs shadow-2xs"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                    <span className="font-semibold text-slate-800 truncate" title={sf.fileName}>
+                                      {sf.fileName}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 flex-shrink-0">
+                                      ({(sf.fileSizeBytes / 1024 / 1024).toFixed(2)} MB)
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeFile(realIndex)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded"
+                                    title="ลบไฟล์นี้"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={() => removeFile(idx)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white transition-colors"
-                          title="ลบไฟล์นี้"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {/* Upload Button for this subtask */}
+                        <div className="pl-7">
+                          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 text-xs font-semibold rounded-xl border border-slate-200 hover:border-blue-300 shadow-2xs transition-all">
+                            <UploadCloud className="w-3.5 h-3.5 text-blue-600" />
+                            <span>{isAttached ? '+ แนบไฟล์เพิ่มในข้อนี้' : `แนบไฟล์สำหรับข้อที่ ${idx + 1}`}</span>
+                            <input
+                              type="file"
+                              multiple
+                              accept={selectedTopic?.allowedFileExtensions.join(',') || '.pdf,.docx,.doc'}
+                              onChange={(e) => handleSubTaskFileChange(e, st)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       </div>
-                    ))}
+                    );
+                  })}
+
+                  {/* General / Additional files dropzone */}
+                  <div className="pt-2">
+                    <label className="cursor-pointer block text-center p-3 rounded-2xl border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/20 text-xs text-slate-600 transition-all">
+                      <span className="font-semibold text-blue-600">+ แนบไฟล์เสริมอื่นๆ ทั่วไป (ถ้ามีไฟล์เพิ่มเติม)</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept={selectedTopic?.allowedFileExtensions.join(',') || '.pdf,.docx,.doc'}
+                        onChange={handleGeneralFileChange}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
+                </div>
+              ) : (
+                /* Case B: Topic DOES NOT have Sub-Tasks -> Single clean dropzone */
+                <div>
+                  <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 rounded-2xl p-6 text-center transition-all cursor-pointer relative bg-slate-50/40 group">
+                    <input
+                      type="file"
+                      multiple
+                      accept={selectedTopic?.allowedFileExtensions.join(',') || '.pdf,.docx,.doc,.xlsx,.pptx'}
+                      onChange={handleGeneralFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์มาวางที่นี่
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          รองรับ PDF, Word, Excel, PowerPoint, รูปภาพ (สูงสุด {selectedTopic?.maxFiles || 5} ไฟล์)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Uploaded Files for general topic */}
+                  {files.length > 0 && (
+                    <div className="space-y-2 pt-3">
+                      <p className="text-xs font-semibold text-slate-700">ไฟล์ที่แนบแล้ว ({files.length} รายการ):</p>
+                      <div className="space-y-1.5">
+                        {files.map((file, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <span className="font-semibold text-slate-800 truncate">{file.fileName}</span>
+                              <span className="text-[10px] text-slate-400">({(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB)</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -783,7 +908,7 @@ export const SubmitWorkPage: React.FC = () => {
                   className="w-full text-xs rounded-xl border border-slate-200 px-3.5 py-2.5 text-slate-700 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
 
-                {/* Quick 3 pills */}
+                {/* Quick 2 pills */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <span className="text-[10px] text-slate-400">ข้อความด่วน:</span>
                   <button
