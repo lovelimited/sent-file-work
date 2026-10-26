@@ -12,10 +12,11 @@ import {
   FileText, 
   ArrowRight,
   Sparkles,
-  BookOpen,
-  Calendar,
-  FolderPlus,
-  AlertCircle
+  BookOpen, 
+  Calendar, 
+  FolderPlus, 
+  AlertCircle,
+  Download
 } from 'lucide-react';
 
 export const TeacherDashboard: React.FC = () => {
@@ -71,16 +72,47 @@ export const TeacherDashboard: React.FC = () => {
               ส่งผลงานใหม่
             </Link>
             <Link
-              to="/library"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-800/60 backdrop-blur-md text-white text-xs font-medium border border-white/20 hover:bg-blue-800 transition-colors"
+              to="/library?tab=templates"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
             >
-              <BookOpen className="w-4 h-4" />
-              ดาวน์โหลดแบบฟอร์ม & คู่มือ
+              <BookOpen className="w-4 h-4 text-slate-950" />
+              คู่มือ & แบบฟอร์มกลาง
             </Link>
           </div>
         </div>
 
         <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none"></div>
+      </div>
+
+      {/* Quick Access Card: Central Templates & Guides (คู่มือ & แบบฟอร์มกลาง) */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-blue-500/10 rounded-3xl border border-amber-200/80 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center shadow-sm flex-shrink-0">
+            <BookOpen className="w-6 h-6 text-slate-950" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">
+                คู่มือ & แบบฟอร์มกลาง (Central Templates & Guides)
+              </h3>
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200">
+                ดาวน์โหลดฟรี
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              คลังเอกสารแบบฟอร์มแผนการสอน วิจัยในชั้นเรียน ข้อตกลง ว.PA และคู่มือมาตรฐานสำหรับคุณครู
+            </p>
+          </div>
+        </div>
+
+        <Link
+          to="/library?tab=templates"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-sm transition-all hover:scale-[1.02] flex-shrink-0"
+        >
+          <Download className="w-4 h-4 text-slate-950" />
+          <span>ดาวน์โหลดแบบฟอร์ม & คู่มือ</span>
+          <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
+        </Link>
       </div>
 
       {/* Section: Topics with Deadlines */}

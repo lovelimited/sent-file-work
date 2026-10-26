@@ -34,16 +34,31 @@ import {
   ShieldCheck,
   Edit3,
   Plus,
-  Check
+  Check,
+  Settings2
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 export const LibraryPage: React.FC = () => {
   const { currentUser, role } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'templates' ? 'templates' : 'topic_folders';
+  const [activeMainTab, setActiveMainTab] = useState<'topic_folders' | 'templates'>(initialTab);
+
   const [categories, setCategories] = useState(getLibraryCategories());
   const [files, setFiles] = useState(getLibraryFiles());
   const [topicFolders, setTopicFolders] = useState(getSubmissionFilesGroupedByTopic());
+
+  // Listen to tab query param changes
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'templates') {
+      setActiveMainTab('templates');
+    } else if (tabParam === 'topic_folders') {
+      setActiveMainTab('topic_folders');
+    }
+  }, [searchParams]);
 
   // Listen to real-time sync / data change events
   useEffect(() => {
@@ -60,8 +75,8 @@ export const LibraryPage: React.FC = () => {
     };
   }, []);
 
-  // Main Page Tab: 'topic_folders' (โฟลเดอร์ผลงานตามชื่องาน) or 'templates' (คลังแบบฟอร์มกลาง)
-  const [activeMainTab, setActiveMainTab] = useState<'topic_folders' | 'templates'>('topic_folders');
+  // Category Manager Modal state
+  const [showCatManagerModal, setShowCatManagerModal] = useState(false);
   
   // Topic Folders Explorer State
   const [selectedTopicFolder, setSelectedTopicFolder] = useState<TopicFolderItem | null>(null);
@@ -140,6 +155,49 @@ export const LibraryPage: React.FC = () => {
       title: `สร้างหมวดหมู่ "${created.name}" เรียบร้อยแล้ว`,
       showConfirmButton: false,
       timer: 2000
+    });
+  };
+
+  // Handler to delete category
+  const handleDeleteCategory = (catId: string, catName: string) => {
+    const filesInCat = files.filter(f => f.categoryId === catId);
+    Swal.fire({
+      title: 'ยืนยันการลบหมวดหมู่เอกสาร?',
+      html: `
+        <div class="text-left text-xs space-y-2">
+          <p>คุณกำลังจะลบหมวดหมู่: <b class="text-rose-600 font-semibold">"${catName}"</b></p>
+          ${filesInCat.length > 0 
+            ? `<div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+                ⚠️ มีเอกสารอยู่ในหมวดหมู่นี้ <b>${filesInCat.length}</b> ไฟล์ ระบบจะย้ายเอกสารทั้งหมดไปยังหมวดหมู่หลักเพื่อความปลอดภัย
+               </div>` 
+            : '<p class="text-slate-500">หมวดหมู่นี้ไม่มีเอกสารคงค้าง</p>'}
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ใช่, ยืนยันลบหมวดหมู่นี้',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b'
+    }).then((res) => {
+      if (res.isConfirmed) {
+        deleteLibraryCategory(catId, currentUser || undefined);
+        const updated = getLibraryCategories();
+        setCategories([...updated]);
+        if (selectedCatId === catId) {
+          setSelectedCatId('all');
+        }
+        if (newCatId === catId && updated.length > 0) {
+          setNewCatId(updated[0].id);
+        }
+        Swal.fire({
+          icon: 'success',
+          title: 'ลบหมวดหมู่เรียบร้อยแล้ว',
+          text: `หมวดหมู่ "${catName}" ถูกนำออกจากระบบแล้ว`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
     });
   };
 
@@ -328,8 +386,12 @@ export const LibraryPage: React.FC = () => {
         {/* Global Tab Switcher */}
         <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-semibold">
           <button
-            onClick={() => { setActiveMainTab('topic_folders'); setSelectedTopicFolder(null); }}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
+            onClick={() => { 
+              setActiveMainTab('topic_folders'); 
+              setSelectedTopicFolder(null); 
+              setSearchParams({});
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
               activeMainTab === 'topic_folders'
                 ? 'bg-white text-blue-700 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -340,8 +402,11 @@ export const LibraryPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveMainTab('templates')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
+            onClick={() => {
+              setActiveMainTab('templates');
+              setSearchParams({ tab: 'templates' });
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
               activeMainTab === 'templates'
                 ? 'bg-white text-blue-700 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -970,11 +1035,26 @@ export const LibraryPage: React.FC = () => {
                       }
                     });
                   }}
-                  className="px-2.5 py-1.5 rounded-xl font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs cursor-pointer"
                   title="เปลี่ยนชื่อหมวดหมู่นี้"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>เปลี่ยนชื่อหมวดหมู่นี้</span>
+                </button>
+              )}
+
+              {role === 'admin' && selectedCatId !== 'all' && (
+                <button
+                  onClick={() => {
+                    const currentCat = accessibleCategories.find(c => c.id === selectedCatId);
+                    if (!currentCat) return;
+                    handleDeleteCategory(currentCat.id, currentCat.name);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs cursor-pointer"
+                  title="ลบหมวดหมู่เอกสารนี้"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>ลบหมวดหมู่นี้</span>
                 </button>
               )}
 
@@ -1010,11 +1090,22 @@ export const LibraryPage: React.FC = () => {
                       }
                     });
                   }}
-                  className="px-2.5 py-1.5 rounded-xl font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs cursor-pointer"
                   title="สร้างหมวดหมู่เอกสารใหม่"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>เพิ่มหมวดหมู่</span>
+                </button>
+              )}
+
+              {role === 'admin' && (
+                <button
+                  onClick={() => setShowCatManagerModal(true)}
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-slate-700 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs cursor-pointer"
+                  title="เปิดหน้าต่างจัดการหมวดหมู่ทั้งหมด"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-slate-600" />
+                  <span>จัดการหมวดหมู่</span>
                 </button>
               )}
             </div>
@@ -1136,6 +1227,20 @@ export const LibraryPage: React.FC = () => {
                           >
                             <Plus className="w-3 h-3" />
                             เพิ่มหมวดหมู่ใหม่
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = accessibleCategories.find(c => c.id === newCatId) || accessibleCategories[0];
+                              if (!curr) return;
+                              handleDeleteCategory(curr.id, curr.name);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                            title="ลบหมวดหมู่ที่เลือกนี้"
+                          >
+                            <Trash2 className="w-3 h-3 text-rose-500" />
+                            ลบหมวดหมู่นี้
                           </button>
                         </>
                       )}
@@ -1321,6 +1426,118 @@ export const LibraryPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CATEGORY MANAGER MODAL */}
+      {showCatManagerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-blue-600" />
+                จัดการหมวดหมู่เอกสารทั้งหมด ({categories.length} หมวดหมู่)
+              </h3>
+              <button 
+                onClick={() => setShowCatManagerModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Add Form */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+              <span className="text-xs font-bold text-slate-700 block">➕ เพิ่มหมวดหมู่เอกสารใหม่</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="เช่น เอกสารฝ่ายงบประมาณและพัสดุ..."
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveNewCategory}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-xs"
+                >
+                  เพิ่ม
+                </button>
+              </div>
+            </div>
+
+            {/* Categories List */}
+            <div className="max-h-80 overflow-y-auto space-y-2 divide-y divide-slate-100 pr-1">
+              {categories.map((cat) => {
+                const count = files.filter(f => f.categoryId === cat.id).length;
+                return (
+                  <div key={cat.id} className="pt-2 flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <p className="font-bold text-slate-900">{cat.name}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">มีเอกสาร {count} รายการ</p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => {
+                          Swal.fire({
+                            title: 'เปลี่ยนชื่อหมวดหมู่เอกสาร',
+                            input: 'text',
+                            inputLabel: `ชื่อหมวดหมู่เดิม: "${cat.name}"`,
+                            inputValue: cat.name,
+                            showCancelButton: true,
+                            confirmButtonText: 'บันทึกชื่อใหม่',
+                            cancelButtonText: 'ยกเลิก',
+                            confirmButtonColor: '#2563eb',
+                            inputValidator: (value) => {
+                              if (!value || !value.trim()) {
+                                return 'กรุณากรอกชื่อหมวดหมู่';
+                              }
+                            }
+                          }).then((result) => {
+                            if (result.isConfirmed && result.value) {
+                              const updated = updateLibraryCategoryName(cat.id, result.value.trim(), currentUser || undefined);
+                              setCategories([...updated]);
+                              Swal.fire({
+                                icon: 'success',
+                                title: 'เปลี่ยนชื่อสำเร็จ!',
+                                text: `หมวดหมู่ถูกเปลี่ยนชื่อเป็น "${result.value.trim()}" เรียบร้อยแล้ว`,
+                                timer: 2000,
+                                showConfirmButton: false,
+                              });
+                            }
+                          });
+                        }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 border border-blue-200 transition-colors cursor-pointer"
+                        title="เปลี่ยนชื่อหมวดหมู่นี้"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                        title="ลบหมวดหมู่นี้"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCatManagerModal(false)}
+                className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
           </div>
         </div>
       )}

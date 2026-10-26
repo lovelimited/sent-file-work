@@ -824,6 +824,26 @@ export function deleteLibraryCategory(id: string, actor?: User): boolean {
   let cats = getLibraryCategories();
   cats = cats.filter(c => c.id !== id);
   setItem(STORAGE_KEYS.LIBRARY_CATS, cats);
+
+  // If there are files under this category, safely reassign them to the remaining category
+  const fallbackCatId = cats[0]?.id || 'cat-forms';
+  let files = getLibraryFiles();
+  let modifiedFiles = false;
+  files = files.map(f => {
+    if (f.categoryId === id) {
+      modifiedFiles = true;
+      const updatedFile = { ...f, categoryId: fallbackCatId };
+      try {
+        setDoc(doc(db, 'libraryFiles', updatedFile.id), updatedFile, { merge: true }).catch(() => {});
+      } catch (e) {}
+      return updatedFile;
+    }
+    return f;
+  });
+  if (modifiedFiles) {
+    setItem(STORAGE_KEYS.LIBRARY_FILES, files);
+  }
+
   if (actor) {
     logActivity('DELETE_LIBRARY_CATEGORY', 'LibraryCategory', id, actor);
   }
