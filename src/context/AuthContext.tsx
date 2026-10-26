@@ -123,6 +123,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_USERS_SYNCED' } }));
           }
+        } else {
+          // If Cloud Firestore 'users' is empty, upload all local users so they are synced across all devices
+          const localUsers = getUsers();
+          if (localUsers.length > 0) {
+            localUsers.forEach(u => {
+              setDoc(doc(db, 'users', u.uid), u, { merge: true }).catch(() => {});
+            });
+          }
         }
       }, (err) => {
         console.warn('Firestore users sync notice:', err.message);
@@ -290,9 +298,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อฝ่ายบริหารวิชาการ' };
     }
 
-    setCurrentUser(user);
-    setStoredCurrentUser(user);
-    logActivity('LOGIN', 'User', user.uid, user, { method: fbUserResult ? 'firebase' : 'credential' });
+    const userToSync: User = { 
+      ...user, 
+      lastLoginAt: new Date().toISOString() 
+    };
+
+    setCurrentUser(userToSync);
+    setStoredCurrentUser(userToSync);
+
+    // Sync to Cloud Firestore in real time so all devices immediately see this user logged in
+    try {
+      setDoc(doc(db, 'users', userToSync.uid), userToSync, { merge: true }).catch(err => {
+        console.warn('Firestore login user sync notice:', err);
+      });
+    } catch (e) {}
+
+    logActivity('LOGIN', 'User', userToSync.uid, userToSync, { method: fbUserResult ? 'firebase' : 'credential' });
+    syncDataToGoogleSheets('USER_LOGIN').catch(() => {});
     return { success: true };
   };
 
@@ -445,7 +467,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     createUser(newTeacher);
     setCurrentUser(newTeacher);
     setStoredCurrentUser(newTeacher);
+
+    // Sync to Cloud Firestore in real time so all admins and devices see new teacher instantly
+    try {
+      await setDoc(doc(db, 'users', newTeacher.uid), newTeacher, { merge: true });
+    } catch (fsErr) {
+      console.warn('Firestore register teacher sync notice:', fsErr);
+    }
+
     logActivity('REGISTER_TEACHER', 'User', newTeacher.uid, newTeacher, { email: newTeacher.email });
+    syncDataToGoogleSheets('REGISTER_TEACHER').catch(() => {});
     return { success: true };
   };
 

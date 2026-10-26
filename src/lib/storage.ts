@@ -169,6 +169,13 @@ export function updateUser(uid: string, updates: Partial<User>, actor?: User): U
     setStoredCurrentUser(updatedUser);
   }
 
+  // Real-time Cloud Firestore sync
+  try {
+    setDoc(doc(db, 'users', uid), updatedUser, { merge: true }).catch(err => {
+      console.warn('Firestore updateUser sync error:', err);
+    });
+  } catch (e) {}
+
   if (actor) {
     logActivity('UPDATE_USER', 'User', uid, actor, updates);
   }
@@ -185,6 +192,15 @@ export function createUser(user: User, actor?: User): User {
     users.push(user);
   }
   setItem(STORAGE_KEYS.USERS, users);
+
+  // Real-time Cloud Firestore sync
+  try {
+    const finalUser = users[index >= 0 ? index : users.length - 1];
+    setDoc(doc(db, 'users', finalUser.uid), finalUser, { merge: true }).catch(err => {
+      console.warn('Firestore createUser sync error:', err);
+    });
+  } catch (e) {}
+
   if (actor) {
     logActivity('CREATE_USER', 'User', user.uid, actor, { role: user.role, email: user.email });
   }
@@ -205,6 +221,13 @@ export function deleteUser(uid: string, actor?: User): boolean {
   const submissions = getSubmissions();
   const newSubmissions = submissions.filter(s => s.teacherUid !== uid);
   setItem(STORAGE_KEYS.SUBMISSIONS, newSubmissions);
+
+  // Real-time Cloud Firestore delete
+  try {
+    deleteDoc(doc(db, 'users', uid)).catch(err => {
+      console.warn('Firestore deleteUser sync error:', err);
+    });
+  } catch (e) {}
 
   if (actor) {
     logActivity('DELETE_USER', 'User', uid, actor, { 
@@ -298,6 +321,13 @@ export function deleteDemoTeachers(actor?: User): { count: number; names: string
   const demoUids = new Set(demoUsers.map(u => u.uid));
   const remainingUsers = users.filter(u => !demoUids.has(u.uid));
   setItem(STORAGE_KEYS.USERS, remainingUsers);
+
+  // Clean demo users from Firestore
+  demoUids.forEach(uid => {
+    try {
+      deleteDoc(doc(db, 'users', uid)).catch(() => {});
+    } catch (e) {}
+  });
 
   // Clean demo submissions completely
   deleteDemoSubmissions(actor);

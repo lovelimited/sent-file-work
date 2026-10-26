@@ -33,20 +33,33 @@ import Swal from 'sweetalert2';
 export const AdminDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const settings = getSettings();
-  const submissions = getSubmissions();
-  const users = getUsers();
-  const libraryFiles = getLibraryFiles();
-  const logs = getActivityLogs().slice(0, 5);
+  const [submissions, setSubmissions] = useState(() => getSubmissions());
+  const [users, setUsers] = useState(() => getUsers());
+  const [libraryFiles, setLibraryFiles] = useState(() => getLibraryFiles());
+  const [logs, setLogs] = useState(() => getActivityLogs().slice(0, 5));
 
   const [syncInfo, setSyncInfo] = useState(() => getLastSheetsSyncInfo());
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
+    const handleDataChanged = () => {
+      setUsers(getUsers());
+      setSubmissions(getSubmissions());
+      setLibraryFiles(getLibraryFiles());
+      setLogs(getActivityLogs().slice(0, 5));
+    };
+    window.addEventListener('sent_work_data_changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
+
     const handleSynced = () => {
       setSyncInfo(getLastSheetsSyncInfo());
     };
     window.addEventListener('sent_work_sheets_synced', handleSynced);
-    return () => window.removeEventListener('sent_work_sheets_synced', handleSynced);
+    return () => {
+      window.removeEventListener('sent_work_data_changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+      window.removeEventListener('sent_work_sheets_synced', handleSynced);
+    };
   }, []);
 
   const handleManualSync = async () => {

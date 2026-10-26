@@ -41,8 +41,21 @@ import { DocumentViewerModal } from './DocumentViewerModal';
 
 export const TeacherSubmissionTracker: React.FC = () => {
   const { currentUser, role } = useAuth();
+  const [, setMatrixVersion] = useState(0);
   const matrixData = getFullSubmissionMatrix();
   const { topics, rows, totalTeachers, topicStats } = matrixData;
+
+  React.useEffect(() => {
+    const handleDataChanged = () => {
+      setMatrixVersion(v => v + 1);
+    };
+    window.addEventListener('sent_work_data_changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
+    return () => {
+      window.removeEventListener('sent_work_data_changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+    };
+  }, []);
 
   // View mode: 'standard' (แนวนอน อ่านง่าย), 'topics' (แยกติดตามรายหัวข้องาน), 'compact' (สมุดตรวจกระชับ)
   const [viewMode, setViewMode] = useState<'standard' | 'topics' | 'compact'>('standard');

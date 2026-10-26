@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getUsers, updateUser, createUser, deleteUser, deleteDemoTeachers, getSettings } from '../../lib/storage';
 import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
 import { db } from '../../lib/firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 import { User, UserRole } from '../../types';
 import { 
   Users, 
@@ -46,16 +46,45 @@ export const MembersPage: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('teacher');
 
-  // Auto-reload users on any mutation or cloud sync
+  // Auto-reload users in REAL TIME on any mutation, local event, or direct Firestore cloud push
   React.useEffect(() => {
     const handleDataChanged = () => {
       setUsers(getUsers());
     };
     window.addEventListener('sent_work_data_changed', handleDataChanged);
     window.addEventListener('storage', handleDataChanged);
+
+    // Direct Firestore real-time listener for instant zero-latency UI updates
+    let unsubscribeFirestore = () => {};
+    try {
+      unsubscribeFirestore = onSnapshot(collection(db, 'users'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudUsers: User[] = [];
+          snapshot.forEach(docSnap => {
+            const u = docSnap.data() as User;
+            if (u && u.uid) cloudUsers.push(u);
+          });
+          if (cloudUsers.length > 0) {
+            const localUsers = getUsers();
+            const map = new Map<string, User>();
+            localUsers.forEach(u => map.set(u.uid, u));
+            cloudUsers.forEach(cu => map.set(cu.uid, cu));
+            const merged = Array.from(map.values());
+            localStorage.setItem('sent_work_users_v5', JSON.stringify(merged));
+            setUsers(merged);
+          }
+        }
+      }, (err) => {
+        console.warn('MembersPage onSnapshot notice:', err);
+      });
+    } catch (e) {
+      console.warn('MembersPage onSnapshot error:', e);
+    }
+
     return () => {
       window.removeEventListener('sent_work_data_changed', handleDataChanged);
       window.removeEventListener('storage', handleDataChanged);
+      unsubscribeFirestore();
     };
   }, []);
 
