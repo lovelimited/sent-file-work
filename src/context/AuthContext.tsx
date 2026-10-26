@@ -206,8 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let user = getUserByEmail(trimmedId) || getUserByUsername(trimmedId);
     const isMasterAdminId = trimmedId.toLowerCase() === 'admin' || 
-      trimmedId.toLowerCase() === 'drive.limited@gmail.com' ||
-      trimmedId.toLowerCase() === 'krittapot.kpmg@gmail.com';
+      trimmedId.toLowerCase() === 'drive.limited@gmail.com';
 
     let isPasswordValid = false;
     let fbUserResult: any = null;
@@ -326,36 +325,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const email = (fbUser.email || '').toLowerCase();
       const displayName = fbUser.displayName || '';
 
-      // Auto-detect Admin rights for Krittapot or drive.limited
-      const isKrittapot = (
-        email === 'drive.limited@gmail.com' ||
-        email === 'krittapot.kpmg@gmail.com' ||
-        displayName.includes('กฤตพจน์') ||
-        displayName.toLowerCase().includes('krittapot')
-      );
+      // Only the dedicated system owner account defaults to admin on first login
+      const isSystemAdmin = email === 'drive.limited@gmail.com';
 
       let user = getUserByEmail(email);
 
       if (!user) {
+        // ALL new members signing up with Google are TEACHERS (คุณครู) by default
         user = {
           uid: fbUser.uid,
           email: fbUser.email || email,
           emailVerified: fbUser.emailVerified,
-          displayName: displayName || (isKrittapot ? 'ม.กฤตพจน์ แก้วกา (Admin)' : 'คุณครู ' + (email.split('@')[0])),
-          firstName: displayName ? displayName.split(' ')[0] : (isKrittapot ? 'กฤตพจน์' : 'คุณครู'),
-          lastName: displayName ? displayName.split(' ').slice(1).join(' ') : (isKrittapot ? 'แก้วกา' : 'ผู้สอน'),
-          role: isKrittapot ? 'admin' : 'teacher',
+          displayName: displayName || ('คุณครู ' + (email.split('@')[0])),
+          firstName: displayName ? displayName.split(' ')[0] : 'คุณครู',
+          lastName: displayName ? displayName.split(' ').slice(1).join(' ') : 'ผู้สอน',
+          role: isSystemAdmin ? 'admin' : 'teacher',
           status: 'active',
-          learningAreaIds: isKrittapot ? ['admin'] : ['general'],
-          learningAreaName: isKrittapot ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
-          subjects: [{ name: isKrittapot ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
-          gradeLevels: isKrittapot ? ['ทุกระดับชั้น'] : ['ม.1-ม.6'],
+          learningAreaIds: isSystemAdmin ? ['admin'] : ['general'],
+          learningAreaName: isSystemAdmin ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
+          subjects: [{ name: isSystemAdmin ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
+          gradeLevels: isSystemAdmin ? ['ทุกระดับชั้น'] : ['ม.1-ม.6'],
           photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
           authProvider: 'google',
           createdAt: new Date().toISOString(),
         };
         createUser(user);
       } else {
+        // Existing member: preserve their existing role in database!
         const updates: Partial<User> = {};
         const isDefaultPlaceholder = !user.displayName || user.displayName.startsWith('คุณครู ') || user.displayName === email.split('@')[0];
         if (displayName && isDefaultPlaceholder) {
@@ -363,9 +359,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         if (fbUser.photoURL && (!user.photo || user.photo.url !== fbUser.photoURL)) {
           updates.photo = { type: 'url', url: fbUser.photoURL };
-        }
-        if (isKrittapot && user.role !== 'admin') {
-          updates.role = 'admin';
         }
         if (Object.keys(updates).length > 0) {
           user = { ...user, ...updates };
