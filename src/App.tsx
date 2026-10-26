@@ -11,8 +11,6 @@ import { SubmissionDetailPage } from './features/submissions/SubmissionDetailPag
 import { LibraryPage } from './features/library/LibraryPage';
 import { MembersPage } from './features/admin/MembersPage';
 import { TopicsPage } from './features/admin/TopicsPage';
-import { SubmissionTypesPage } from './features/admin/SubmissionTypesPage';
-import { RoundsPage } from './features/admin/RoundsPage';
 import { ActivityLogsPage } from './features/admin/ActivityLogsPage';
 import { SettingsPage } from './features/admin/SettingsPage';
 import { ProfilePage } from './features/profile/ProfilePage';
@@ -70,10 +68,10 @@ export const App: React.FC = () => {
             {/* Admin Management Routes */}
             <Route path="admin/topics" element={<TopicsPage />} />
             <Route path="admin/members" element={<MembersPage />} />
-            <Route path="admin/submission-types" element={<SubmissionTypesPage />} />
-            <Route path="admin/rounds" element={<RoundsPage />} />
             <Route path="admin/activity-logs" element={<ActivityLogsPage />} />
             <Route path="admin/settings" element={<SettingsPage />} />
+            <Route path="admin/submission-types" element={<Navigate to="/admin/topics" replace />} />
+            <Route path="admin/rounds" element={<Navigate to="/admin/topics" replace />} />
           </Route>
 
           {/* Wildcard fallback */}

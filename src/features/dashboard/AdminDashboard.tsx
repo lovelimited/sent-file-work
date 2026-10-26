@@ -369,16 +369,16 @@ export const AdminDashboard: React.FC = () => {
               จัดการสมาชิก
             </Link>
             <Link
-              to="/admin/submission-types"
+              to="/admin/topics"
               className="p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700 text-xs font-medium text-center transition-colors"
             >
-              ตั้งค่าประเภทงาน
+              จัดการหัวข้อส่งงาน
             </Link>
             <Link
-              to="/admin/rounds"
+              to="/library?tab=templates"
               className="p-2.5 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700 text-xs font-medium text-center transition-colors"
             >
-              ตั้งรอบส่งงาน
+              คลังเอกสาร & คู่มือ
             </Link>
           </div>
         </div>
