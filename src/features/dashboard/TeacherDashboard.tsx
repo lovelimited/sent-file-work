@@ -59,7 +59,7 @@ export const TeacherDashboard: React.FC = () => {
             สวัสดีครับ/ค่ะ, {currentUser?.displayName}
           </h2>
           <p className="mt-2 text-sm text-blue-100 leading-relaxed">
-            {settings.welcomeText} สามารถส่งผลงานตามหัวข้อที่แอดมินกำหนด และติดตามสถานะการส่งงานของทุกคนในโรงเรียนได้ที่นี่
+            {settings.welcomeText} สามารถส่งงานวิชาการ แนบไฟล์เอกสาร และติดตามสถานะการส่งงานของทุกคนในโรงเรียนได้ที่นี่
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -83,16 +83,16 @@ export const TeacherDashboard: React.FC = () => {
         <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none"></div>
       </div>
 
-      {/* Section: Topics Assigned by Admin with Deadlines */}
+      {/* Section: Topics with Deadlines */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <FolderPlus className="w-5 h-5 text-blue-600" />
-              หัวข้อเรื่องที่แอดมินเปิดรับส่งขณะนี้ (Active Submission Topics)
+              หัวข้อเรื่องที่เปิดรับส่งผลงานขณะนี้ (Active Submission Topics)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              กำหนดส่งและคำชี้แจงจากฝ่ายบริหารวิชาการ คลิกเลือกหัวข้อเพื่อส่งผลงานตามกำหนด
+              กำหนดส่งและคำชี้แจงจากฝ่ายบริหารวิชาการ คลิกเลือกหัวข้อเพื่อส่งผลงานได้ทันที
             </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200 w-fit">
