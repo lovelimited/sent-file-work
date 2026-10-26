@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole, SubmissionTopic, Submission, LibraryCategory } from '../types';
+import { User, UserRole, SubmissionTopic, Submission, LibraryCategory, SubmissionVersion, ReviewRecord } from '../types';
 import { 
   getStoredCurrentUser, 
   setStoredCurrentUser, 
@@ -77,6 +77,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let unsubscribeTopics = () => {};
     let unsubscribeSubmissions = () => {};
     let unsubscribeLibraryCats = () => {};
+    let unsubscribeVersions = () => {};
+    let unsubscribeReviews = () => {};
 
     try {
       // 1. Sync Users
@@ -212,6 +214,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore library categories sync notice:', err.message);
       });
 
+      // 5. Sync Versions (เวอร์ชันและไฟล์ของผลงาน)
+      unsubscribeVersions = onSnapshot(collection(db, 'versions'), (snapshot) => {
+        if (!snapshot.empty) {
+          const versionsBySub: Record<string, SubmissionVersion[]> = {};
+          snapshot.forEach(docSnap => {
+            const vData = docSnap.data() as SubmissionVersion;
+            if (vData && vData.submissionId) {
+              if (!versionsBySub[vData.submissionId]) {
+                versionsBySub[vData.submissionId] = [];
+              }
+              versionsBySub[vData.submissionId].push(vData);
+            }
+          });
+          Object.values(versionsBySub).forEach(arr => {
+            arr.sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+          });
+          const existingRaw = localStorage.getItem('sent_work_versions_v5');
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          const merged = { ...existing, ...versionsBySub };
+          localStorage.setItem('sent_work_versions_v5', JSON.stringify(merged));
+          window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_VERSIONS_SYNCED' } }));
+        }
+      }, (err) => {
+        console.warn('Firestore versions sync notice:', err.message);
+      });
+
+      // 6. Sync Reviews (บันทึกการตรวจประเมินของแอดมิน)
+      unsubscribeReviews = onSnapshot(collection(db, 'reviews'), (snapshot) => {
+        if (!snapshot.empty) {
+          const reviewsBySub: Record<string, ReviewRecord[]> = {};
+          snapshot.forEach(docSnap => {
+            const rData = docSnap.data() as ReviewRecord;
+            if (rData && rData.submissionId) {
+              if (!reviewsBySub[rData.submissionId]) {
+                reviewsBySub[rData.submissionId] = [];
+              }
+              reviewsBySub[rData.submissionId].push(rData);
+            }
+          });
+          Object.values(reviewsBySub).forEach(arr => {
+            arr.sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
+          });
+          const existingRaw = localStorage.getItem('sent_work_reviews_v5');
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          const merged = { ...existing, ...reviewsBySub };
+          localStorage.setItem('sent_work_reviews_v5', JSON.stringify(merged));
+          window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_REVIEWS_SYNCED' } }));
+        }
+      }, (err) => {
+        console.warn('Firestore reviews sync notice:', err.message);
+      });
+
     } catch (e) {
       console.warn('Firestore onSnapshot init:', e);
     }
@@ -221,6 +275,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribeTopics();
       unsubscribeSubmissions();
       unsubscribeLibraryCats();
+      unsubscribeVersions();
+      unsubscribeReviews();
     };
   }, [currentUser]);
 

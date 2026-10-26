@@ -357,7 +357,28 @@ export function getSubmissionById(id: string): Submission | undefined {
 
 export function getVersionsBySubmissionId(submissionId: string): SubmissionVersion[] {
   const allVersions = getItem<Record<string, SubmissionVersion[]>>(STORAGE_KEYS.VERSIONS, initialVersions);
-  const versions = allVersions[submissionId] || [];
+  let versions = allVersions[submissionId] || [];
+
+  // Resilient fallback: If no versions record exists for this submission, synthesize Version 1
+  if (versions.length === 0) {
+    const sub = getSubmissions().find(s => s.id === submissionId);
+    if (sub) {
+      const fallbackVersion: SubmissionVersion = {
+        id: `ver-${sub.id}-v${sub.currentVersionNumber || 1}`,
+        submissionId: sub.id,
+        versionNumber: sub.currentVersionNumber || 1,
+        note: 'เอกสารและหลักฐานการส่งผลงาน',
+        submittedAt: sub.submittedAt || new Date().toISOString(),
+        statusSnapshot: sub.status || 'submitted',
+        files: [],
+        externalLinks: []
+      };
+      versions = [fallbackVersion];
+      allVersions[submissionId] = versions;
+      setItem(STORAGE_KEYS.VERSIONS, allVersions);
+    }
+  }
+
   versions.forEach(v => {
     v.files?.forEach(f => {
       if (!f.driveUrl || f.driveUrl === '#') {

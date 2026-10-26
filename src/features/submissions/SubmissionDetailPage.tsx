@@ -35,7 +35,10 @@ import {
   ListTodo,
   AlertCircle,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  User,
+  Upload,
+  Tag
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import confetti from 'canvas-confetti';
@@ -87,12 +90,22 @@ export const SubmissionDetailPage: React.FC = () => {
   }, [submission?.currentVersionNumber]);
 
   // Modals state
+  // Modals state
   const [showResubmitModal, setShowResubmitModal] = useState(false);
   const [viewerFile, setViewerFile] = useState<any | null>(null);
+  const [isEditingReview, setIsEditingReview] = useState(false);
 
   // Topic & Sub-tasks
   const topic = topics.find(t => t.id === submission?.topicId);
   const topicSubTasks = topic?.subTasks || [];
+
+  // Helper to format submission title without redundant topic prefix
+  const displaySubmissionTitle = useMemo(() => {
+    if (submission?.topicTitle && submission.title.startsWith(`${submission.topicTitle} - `)) {
+      return submission.title.replace(`${submission.topicTitle} - `, '');
+    }
+    return submission?.title || 'ผลงานครู';
+  }, [submission]);
 
   // Review Form state (Admin only, NO scoring)
   const [reviewDecision, setReviewDecision] = useState<'passed' | 'revision_required'>('passed');
@@ -183,12 +196,26 @@ export const SubmissionDetailPage: React.FC = () => {
   // Auto-initialize review state based on current version and review
   useEffect(() => {
     const initialSubReviews: Record<string, { decision: 'passed' | 'revision_required'; feedback: string }> = {};
-    topicSubTasks.forEach(st => {
+    topicSubTasks.forEach((st, idx) => {
       const existing = activeVersionReview?.subTaskReviews?.[st.id];
-      initialSubReviews[st.id] = {
-        decision: existing?.decision || 'passed',
-        feedback: existing?.feedback || ''
-      };
+      if (existing) {
+        initialSubReviews[st.id] = {
+          decision: existing.decision,
+          feedback: existing.feedback || ''
+        };
+      } else if (submission?.status === 'revision_required') {
+        const passedCount = submission.subTasksCount?.passed ?? 0;
+        const isThisPassed = idx < passedCount;
+        initialSubReviews[st.id] = {
+          decision: isThisPassed ? 'passed' : 'revision_required',
+          feedback: isThisPassed ? '' : 'กรุณาแก้ไขเอกสารในข้อนี้'
+        };
+      } else {
+        initialSubReviews[st.id] = {
+          decision: 'passed',
+          feedback: ''
+        };
+      }
     });
     setSubTaskReviewsState(initialSubReviews);
 
@@ -196,12 +223,16 @@ export const SubmissionDetailPage: React.FC = () => {
       setReviewDecision(activeVersionReview.decision === 'rejected' ? 'revision_required' : activeVersionReview.decision);
       setReviewComments(activeVersionReview.comments || '');
       setReviewRecommendations(activeVersionReview.recommendations || '');
+    } else if (submission?.status === 'revision_required') {
+      setReviewDecision('revision_required');
+      setReviewComments('มีรายการงานย่อยที่ต้องปรับปรุงแก้ไข กรุณาตรวจสอบข้อเสนอแนะและส่งเวอร์ชันใหม่');
+      setReviewRecommendations('');
     } else {
       setReviewDecision('passed');
       setReviewComments('เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย');
       setReviewRecommendations('');
     }
-  }, [selectedVersionNum, activeVersionReview?.id, submission?.id, topicSubTasks.length]);
+  }, [selectedVersionNum, activeVersionReview?.id, submission?.id, submission?.status, topicSubTasks.length]);
 
   const passedSubTasksCount = useMemo(() => {
     return topicSubTasks.filter(st => subTaskReviewsState[st.id]?.decision === 'passed').length;
@@ -422,6 +453,10 @@ export const SubmissionDetailPage: React.FC = () => {
       return;
     }
 
+    const actualDecision = topicSubTasks.length > 0
+      ? (allSubTasksPassed ? 'passed' : 'revision_required')
+      : reviewDecision;
+
     // Prepare subTaskReviews if topic has subtasks
     let subTaskReviewsToSave: Record<string, {
       subTaskId: string;
@@ -445,8 +480,8 @@ export const SubmissionDetailPage: React.FC = () => {
 
     submitAdminReview(
       submission.id,
-      reviewDecision,
-      reviewComments.trim() || (reviewDecision === 'passed' ? 'เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย' : 'กรุณาปรับปรุงเอกสารตามคำแนะนำ'),
+      actualDecision,
+      reviewComments.trim() || (actualDecision === 'passed' ? 'เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย' : 'กรุณาปรับปรุงเอกสารตามคำแนะนำ'),
       reviewRecommendations.trim(),
       currentUser,
       subTaskReviewsToSave
@@ -454,19 +489,20 @@ export const SubmissionDetailPage: React.FC = () => {
 
     triggerAutoSyncToGoogleSheets('ADMIN_SUBMIT_REVIEW');
 
-    if (reviewDecision === 'passed') {
+    if (actualDecision === 'passed') {
       confetti({ particleCount: 70, spread: 60 });
     }
 
     Swal.fire({
       title: 'บันทึกผลการตรวจเรียบร้อย!',
-      text: reviewDecision === 'passed' ? 'อนุมัติผลงานผ่านเรียบร้อยแล้ว' : 'ส่งแจ้งเตือนให้ครูปรับปรุงแก้ไขเรียบร้อยแล้ว',
+      text: actualDecision === 'passed' ? 'อนุมัติผลงานผ่านเรียบร้อยแล้ว' : 'ส่งแจ้งเตือนให้ครูปรับปรุงแก้ไขเรียบร้อยแล้ว',
       icon: 'success',
       confirmButtonColor: '#2563eb',
       timer: 2000,
       showConfirmButton: false
     });
 
+    setIsEditingReview(false);
     reloadSubmissionData();
   };
 
@@ -664,109 +700,88 @@ export const SubmissionDetailPage: React.FC = () => {
         )}
       </div>
 
-      {/* 👑 EXECUTIVE ADMIN APPROVAL CENTER (แผงควบคุมการตรวจงานของแอดมิน ชัดเจน ไม่สับสน) */}
+      {/* 👑 EXECUTIVE ADMIN ACTION BAR (ชัดเจน ตรงไปตรงมา ไม่สับสน) */}
       {isAdmin && (
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-6 sm:p-7 rounded-3xl border-2 border-blue-400/40 shadow-2xl text-white space-y-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-            <div className="space-y-3 flex-1 min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/25 text-blue-300 font-bold text-xs sm:text-sm border border-blue-400/30">
-                  <ShieldCheck className="w-4 h-4 text-blue-400" /> แผงควบคุมการอนุมัติ (Admin Approval Center)
-                </span>
-                <span className="text-xs sm:text-sm text-slate-300 font-medium">
-                  เวอร์ชัน: <b className="text-white">v{submission.currentVersionNumber}</b>
-                </span>
-                {topicSubTasks.length > 0 && (
-                  <span className="text-xs text-purple-300 bg-purple-900/50 px-2.5 py-0.5 rounded-lg border border-purple-500/40 font-semibold">
-                    งานย่อย {passedSubTasksCount}/{topicSubTasks.length} ผ่าน ({Math.round((passedSubTasksCount / topicSubTasks.length) * 100)}%)
-                  </span>
-                )}
+        submission.status === 'passed' && !isEditingReview ? (
+          <div className="bg-emerald-50 border-2 border-emerald-300 p-5 sm:p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
-
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  สถานะภาพรวม:
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-emerald-950 flex items-center gap-2">
+                  ✓ ผลงานนี้ได้รับการอนุมัติผ่านเรียบร้อยแล้ว (Passed 100%)
                 </h2>
-                {submission.status === 'passed' ? (
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-sm sm:text-base font-bold shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" /> อนุมัติผ่านเรียบร้อยแล้ว (Passed 100%)
-                  </span>
-                ) : submission.status === 'revision_required' ? (
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-400/40 text-sm sm:text-base font-bold shadow-sm">
-                    <AlertTriangle className="w-5 h-5 text-amber-400" /> กำลังส่งกลับให้ครูแก้ไข (Revision)
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-blue-500/20 text-blue-300 border border-blue-400/40 text-sm sm:text-base font-bold shadow-sm animate-pulse">
-                    <Clock className="w-5 h-5 text-amber-300" /> รอแอดมินพิจารณาอนุมัติ
-                  </span>
-                )}
+                <p className="text-xs text-emerald-800 mt-0.5">
+                  ตรวจรับรองโดย: <b className="font-bold">{activeVersionReview?.reviewerName || 'ฝ่ายแอดมิน'}</b>
+                  {activeVersionReview?.reviewedAt && (
+                    <span> • เมื่อ {new Date(activeVersionReview.reviewedAt).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</span>
+                  )}
+                </p>
               </div>
-
-              {/* Sub-tasks visual progress bar */}
-              {topicSubTasks.length > 0 && (
-                <div className="max-w-md space-y-1">
-                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
-                    <div 
-                      className={`h-full transition-all duration-500 ${
-                        allSubTasksPassed ? 'bg-emerald-400' : 'bg-amber-400'
-                      }`}
-                      style={{ width: `${(passedSubTasksCount / topicSubTasks.length) * 100}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-300">
-                    <span>ความสมบูรณ์ของงานย่อย: {passedSubTasksCount}/{topicSubTasks.length} ข้อ</span>
-                    <span>{allSubTasksPassed ? 'ครบ 100% พร้อมอนุมัติ' : 'ยังไม่ครบทุกข้อ หรือมีข้อต้องแก้ไข'}</span>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs sm:text-sm text-slate-300">
-                ครูผู้ส่ง: <b className="text-white font-bold">{submission.teacherName}</b> • กลุ่มสาระ: <b className="text-white">{submission.teacherDepartment || 'ทั่วไป'}</b>
-              </p>
             </div>
 
-            {/* ACTION BUTTONS (2 CLEAR OPTIONS: 1-CLICK APPROVE OR REQUEST REVISION) */}
-            <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
-              {/* 1-Click Quick Approve (Pass all subtasks + overall pass) */}
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={handleQuickApprove}
-                className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-emerald-500/30 transition-all cursor-pointer flex items-center gap-2 hover:shadow-emerald-400/50"
-                title="คลิกเดียวเพื่อรับรองผ่านทุกงานย่อยและอนุมัติผลงานนี้ทันที"
+                onClick={() => setIsEditingReview(true)}
+                className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-100/70 text-emerald-900 border border-emerald-300 text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
               >
-                <CheckCircle2 className="w-5 h-5 text-slate-950 fill-emerald-200" />
-                <span>⚡ อนุมัติผ่านทั้งงาน (1-Click)</span>
+                <span>✏️ แก้ไขผลการตรวจใหม่</span>
               </button>
-
-              {/* Request Revision */}
-              <button
-                type="button"
-                onClick={handleQuickRequestRevision}
-                className="px-4 py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-400/40 font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2"
-                title="แจ้งส่งผลงานกลับให้คุณครูแก้ไข"
-              >
-                <AlertCircle className="w-4 h-4" />
-                <span>⚠️ ส่งกลับให้แก้ไข</span>
-              </button>
-
-              {/* Scroll down to subtasks */}
-              {topicSubTasks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById('subtasks-review-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="px-3.5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                  title="เลื่อนลงไปตรวจงานย่อยแต่ละข้อ"
-                >
-                  <ListTodo className="w-4 h-4 text-purple-300" />
-                  <span>ตรวจงานย่อย ↓</span>
-                </button>
-              )}
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-slate-900 text-white p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-xl space-y-3 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> แผงตรวจงานของแอดมิน (Admin Review)
+                  </span>
+                  {topicSubTasks.length > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                      งานย่อย {passedSubTasksCount}/{topicSubTasks.length} ข้อผ่าน
+                    </span>
+                  )}
+                  {submission.status === 'revision_required' && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                      สถานะปัจจุบัน: ต้องส่งแก้ไข
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-base sm:text-lg font-black text-white">
+                  ตรวจรับรองผลงานของ: <span className="text-blue-400">{submission.teacherName}</span> (เวอร์ชัน v{submission.currentVersionNumber})
+                </h2>
+                <p className="text-xs text-slate-400">
+                  คุณสามารถกดปุ่มอนุมัติผ่านทั้งงานในคลิกเดียว หรือตรวจละเอียดรายข้อในรายการด้านล่าง
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+                <button
+                  type="button"
+                  onClick={handleQuickApprove}
+                  className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center gap-2"
+                  title="คลิกเดียวเพื่อรับรองผ่านทุกงานย่อยและอนุมัติผลงานนี้ทันที"
+                >
+                  <CheckCircle2 className="w-4 h-4 fill-emerald-200 text-slate-950" />
+                  <span>⚡ อนุมัติผ่านทั้งงาน (1-Click)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleQuickRequestRevision}
+                  className="px-4 py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-400/40 font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2"
+                  title="แจ้งส่งผลงานกลับให้คุณครูแก้ไข"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>⚠️ ส่งกลับให้แก้ไข</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* Header Info Card */}
@@ -775,7 +790,7 @@ export const SubmissionDetailPage: React.FC = () => {
           <div className="space-y-2 max-w-3xl">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs sm:text-sm font-bold text-blue-800 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
-                {type?.name || topic?.category || 'ผลงานวิชาการ'}
+                {submission.topicTitle || type?.name || topic?.category || 'ผลงานวิชาการ'}
               </span>
               <StatusBadge status={submission.status} isLate={submission.isLate} />
               {topicSubTasks.length > 0 && (
@@ -785,7 +800,7 @@ export const SubmissionDetailPage: React.FC = () => {
               )}
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
-              {submission.title}
+              {displaySubmissionTitle}
             </h1>
           </div>
 
@@ -1102,28 +1117,174 @@ export const SubmissionDetailPage: React.FC = () => {
                 })}
               </div>
 
-              {/* Bottom Quick Save Bar for Admin */}
+              {/* Admin Review Workspace & Single Definitive Save Button */}
               {isAdmin && (
-                <div className="pt-3 border-t border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="text-xs text-slate-600 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
-                    <span>
-                      {allSubTasksPassed 
-                        ? '✨ งานย่อยผ่านครบทุกข้อแล้ว สถานะรวมจะปรับเป็น "อนุมัติผ่าน" อัตโนมัติ' 
-                        : '⚠️ มีงานย่อยที่ต้องแก้ไข สถานะรวมจะปรับเป็น "ส่งกลับให้ครูแก้ไข" อัตโนมัติ'}
-                    </span>
+                <div className="pt-4 mt-2 border-t border-purple-100 space-y-4">
+                  {/* Feedback Comments */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-800">
+                      ความคิดเห็น / บันทึกการตรวจถึงคุณครู:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={reviewComments}
+                      onChange={(e) => setReviewComments(e.target.value)}
+                      placeholder="ระบุข้อความรับรอง หรือระบุภาพรวมการตรวจ..."
+                      className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                    />
                   </div>
 
+                  {/* Recommendations */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-800">
+                      ข้อเสนอแนะเพิ่มเติมสำหรับการจัดการเรียนรู้ (ถ้ามี):
+                    </label>
+                    <input
+                      type="text"
+                      value={reviewRecommendations}
+                      onChange={(e) => setReviewRecommendations(e.target.value)}
+                      placeholder="ระบุคำแนะนำพัฒนาเพิ่มเติม..."
+                      className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                    />
+                  </div>
+
+                  {/* Smart Result Notification */}
+                  <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                    allSubTasksPassed
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : 'bg-amber-50 text-amber-900 border-amber-200'
+                  }`}>
+                    <div className="flex items-center gap-2 text-xs font-semibold">
+                      {allSubTasksPassed ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <span>งานย่อยผ่านครบทุกข้อ ({passedSubTasksCount}/{topicSubTasks.length}) • พร้อมบันทึกอนุมัติผ่านทั้งงาน</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span>มีงานย่อยที่เลือกให้แก้ไข ({topicSubTasks.length - passedSubTasksCount} ข้อ) • ระบบจะบันทึกสถานะส่งกลับให้ครูแก้ไข</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* One Clear Action Button */}
                   <button
                     type="button"
                     onClick={() => handleSubmitAdminReview()}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className={`w-full py-3.5 rounded-2xl text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                      allSubTasksPassed
+                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25'
+                        : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/25'
+                    }`}
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>💾 บันทึกผลการตรวจงานย่อยทันที</span>
+                    {allSubTasksPassed ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>✓ ยืนยันบันทึกผล: อนุมัติผ่านทั้งงาน (Approve 100%)</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-5 h-5" />
+                        <span>⚠️ ยืนยันบันทึกผล: ส่งกลับให้ครูแก้ไข (Request Revision)</span>
+                      </>
+                    )}
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ADMIN REVIEW WORKSPACE FOR TOPICS WITHOUT SUB-TASKS */}
+          {isAdmin && topicSubTasks.length === 0 && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-blue-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-blue-600" />
+                    พิจารณาผลการตรวจ (Admin Review)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">เลือกผลการพิจารณาและบันทึกผลการตรวจ</p>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1 rounded-xl border ${
+                  reviewDecision === 'passed' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-amber-50 text-amber-900 border-amber-300'
+                }`}>
+                  {reviewDecision === 'passed' ? '✓ อนุมัติผ่าน' : '⚠️ ส่งกลับแก้ไข'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewDecision('passed');
+                    setReviewComments('เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย');
+                  }}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                    reviewDecision === 'passed'
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm ${
+                    reviewDecision === 'passed' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    ✓
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">อนุมัติผ่านทั้งงาน</span>
+                    <span className="text-xs text-slate-500">เอกสารถูกต้องครบถ้วน</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewDecision('revision_required');
+                    setReviewComments('มีจุดที่ต้องปรับปรุงแก้ไข กรุณาตรวจสอบข้อเสนอแนะและส่งเวอร์ชันใหม่');
+                  }}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                    reviewDecision === 'revision_required'
+                      ? 'border-amber-500 bg-amber-50 text-amber-950 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm ${
+                    reviewDecision === 'revision_required' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    ⚠️
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">ส่งกลับให้ครูแก้ไข</span>
+                    <span className="text-xs text-slate-500">แจ้งเตือนให้ครูปรับปรุง</span>
+                  </div>
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  ความคิดเห็นการตรวจผลงาน:
+                </label>
+                <textarea
+                  rows={2}
+                  value={reviewComments}
+                  onChange={(e) => setReviewComments(e.target.value)}
+                  placeholder="ระบุข้อความรับรอง หรือแจ้งจุดที่ตรวจสอบแล้ว..."
+                  className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSubmitAdminReview()}
+                className={`w-full py-3.5 rounded-2xl text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                  reviewDecision === 'passed' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                <span>{reviewDecision === 'passed' ? '✓ บันทึกผล: อนุมัติผ่านทั้งงาน' : '⚠️ บันทึกผล: ส่งกลับให้ครูแก้ไข'}</span>
+              </button>
             </div>
           )}
 
@@ -1269,272 +1430,197 @@ export const SubmissionDetailPage: React.FC = () => {
 
         </div>
 
-        {/* Right Column: Admin Review Center (In-Page Review Workspace) */}
+        {/* Right Column: Information, Teacher Details & Google Drive Workspace */}
         <div className="space-y-6">
 
-          {isAdmin ? (
-            <div className="bg-white p-6 rounded-3xl border-2 border-blue-200/90 shadow-sm space-y-5">
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-blue-600" />
-                    แผงยืนยันผลการตรวจ (Admin)
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    ตรวจรับรองเวอร์ชัน {selectedVersionNum} (บันทึกได้ทันที)
-                  </p>
-                </div>
-                <span className={`text-xs font-bold px-3 py-1 rounded-xl border ${
-                  reviewDecision === 'passed' 
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
-                    : 'bg-amber-50 text-amber-900 border-amber-300'
-                }`}>
-                  {reviewDecision === 'passed' ? '✓ อนุมัติผ่าน' : '⚠️ ส่งกลับแก้ไข'}
-                </span>
-              </div>
-
-              {/* Smart sync explanation box */}
-              <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200/80 text-xs text-blue-900 space-y-1">
-                <span className="font-bold flex items-center gap-1 text-[11px]">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" /> ระบบเชื่อมโยงอัตโนมัติ (Smart Linkage):
-                </span>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  {topicSubTasks.length > 0 
-                    ? `เมื่อแอดมินคลิกผ่าน/แก้ไขในรายการงานย่อย ระบบจะปรับสถานะภาพรวมให้อัตโนมัติ (ปัจจุบันผ่าน ${passedSubTasksCount}/${topicSubTasks.length} ข้อ)`
-                    : 'แอดมินสามารถเลือกผลการพิจารณาด้านล่างนี้ได้โดยตรง'}
-                </p>
-              </div>
-
-              {/* Overall Decision Selector */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-800">
-                  ผลการพิจารณาภาพรวม:
-                </label>
-                <div className="space-y-2.5">
-                  <label className="block cursor-pointer">
-                    <input
-                      type="radio"
-                      name="adminOverallDecision"
-                      value="passed"
-                      checked={reviewDecision === 'passed'}
-                      onChange={() => {
-                        setReviewDecision('passed');
-                        if (!reviewComments || reviewComments.includes('มีรายการงานย่อยที่ต้องปรับปรุงแก้ไข')) {
-                          setReviewComments('เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย');
-                        }
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50/70 peer-checked:text-emerald-950 transition-all flex items-center gap-3 shadow-2xs hover:border-slate-300">
-                      <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 peer-checked:border-emerald-300 peer-checked:bg-emerald-600 peer-checked:text-white flex items-center justify-center font-bold text-sm flex-shrink-0 text-emerald-600 shadow-2xs">
-                        ✓
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-bold text-xs sm:text-sm block">อนุมัติผ่านทั้งงาน (Approved)</span>
-                        <span className="text-[11px] text-slate-500 block">เอกสารถูกต้องครบถ้วนตามเกณฑ์</span>
-                      </div>
-                    </div>
-                  </label>
-
-                  <label className="block cursor-pointer">
-                    <input
-                      type="radio"
-                      name="adminOverallDecision"
-                      value="revision_required"
-                      checked={reviewDecision === 'revision_required'}
-                      onChange={() => {
-                        setReviewDecision('revision_required');
-                        if (!reviewComments || reviewComments.includes('เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน')) {
-                          setReviewComments('มีจุดที่ต้องปรับปรุงแก้ไข กรุณาตรวจสอบข้อเสนอแนะและส่งเวอร์ชันใหม่');
-                        }
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50/70 peer-checked:text-amber-950 transition-all flex items-center gap-3 shadow-2xs hover:border-slate-300">
-                      <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 peer-checked:border-amber-300 peer-checked:bg-amber-500 peer-checked:text-white flex items-center justify-center font-bold text-sm flex-shrink-0 text-amber-600 shadow-2xs">
-                        ⚠️
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-bold text-xs sm:text-sm block">ส่งกลับให้ครูแก้ไข (Revision)</span>
-                        <span className="text-[11px] text-slate-500 block">แจ้งเตือนให้ครูปรับปรุงเอกสาร</span>
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Comments Field */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-800">
-                  ความคิดเห็นการตรวจผลงาน:
-                </label>
-                <textarea
-                  rows={3}
-                  value={reviewComments}
-                  onChange={(e) => setReviewComments(e.target.value)}
-                  placeholder="ระบุข้อความรับรอง หรือแจ้งจุดที่ตรวจสอบแล้ว..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
-                />
-              </div>
-
-              {/* Recommendations Field */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-800">
-                  ข้อเสนอแนะเพิ่มเติม (ถ้ามี):
-                </label>
-                <textarea
-                  rows={2}
-                  value={reviewRecommendations}
-                  onChange={(e) => setReviewRecommendations(e.target.value)}
-                  placeholder="ระบุคำแนะนำเพิ่มเติมสำหรับการจัดการเรียนรู้..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
-                />
-              </div>
-
-              {/* Primary Action Button */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => handleSubmitAdminReview()}
-                  className={`w-full py-3.5 rounded-2xl text-white font-black text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
-                    reviewDecision === 'passed'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
-                      : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/30'
-                  }`}
-                >
-                  {reviewDecision === 'passed' ? (
-                    <>
-                      <CheckCircle2 className="w-5 h-5 text-white" />
-                      <span>✓ บันทึกผล: อนุมัติผ่าน (Approve)</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="w-5 h-5 text-white" />
-                      <span>⚠️ บันทึกผล: ส่งกลับแก้ไข (Request Revision)</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleQuickApprove}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="อนุมัติผ่านทั้งงานและทุกงานย่อย 100% ทันที"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>⚡ กดอนุมัติผ่าน 100% ทันที (Quick Approve)</span>
-                </button>
-              </div>
-
-              {/* Previously Reviewed Info */}
-              {activeVersionReview && (
-                <div className="pt-2 text-[11px] text-slate-400 text-center border-t border-slate-100">
-                  ตรวจล่าสุดโดย: <b className="text-slate-600">{activeVersionReview.reviewerName}</b> ({new Date(activeVersionReview.reviewedAt).toLocaleString('th-TH')})
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Teacher view: Read-Only review result card */
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center justify-between">
-                <span>ผลการตรวจรับรอง (เวอร์ชัน {selectedVersionNum})</span>
-                {activeVersionReview && (
-                  <span className={`text-xs sm:text-sm font-bold px-3 py-1 rounded-xl ${
-                    activeVersionReview.decision === 'passed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                    activeVersionReview.decision === 'revision_required' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                    'bg-rose-100 text-rose-900 border border-rose-300'
-                  }`}>
-                    {activeVersionReview.decision === 'passed' ? '✓ ผ่านเรียบร้อย' :
-                     activeVersionReview.decision === 'revision_required' ? '⚠️ ส่งแก้ไข' : '✕ ไม่ผ่าน'}
-                  </span>
-                )}
+          {/* Card 1: Review Status Card (สรุปสถานะการตรวจรับรอง) */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                สถานะการตรวจรับรอง (เวอร์ชัน {selectedVersionNum})
               </h3>
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border ${
+                activeVersionReview?.decision === 'passed' || submission.status === 'passed'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : activeVersionReview?.decision === 'revision_required' || submission.status === 'revision_required'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                    : 'bg-blue-50 text-blue-900 border-blue-300'
+              }`}>
+                {activeVersionReview?.decision === 'passed' || submission.status === 'passed'
+                  ? '✓ อนุมัติผ่านแล้ว'
+                  : activeVersionReview?.decision === 'revision_required' || submission.status === 'revision_required'
+                    ? '⚠️ ต้องแก้ไข'
+                    : '⏳ รอแอดมินตรวจ'}
+              </span>
+            </div>
 
-              {activeVersionReview ? (
-                <div className="space-y-4">
-                  {/* Decision Banner */}
-                  <div className={`p-4 rounded-2xl border-2 flex items-start gap-3.5 ${
-                    activeVersionReview.decision === 'passed' 
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950' 
-                      : activeVersionReview.decision === 'revision_required'
-                        ? 'bg-amber-50 border-amber-300 text-amber-950'
-                        : 'bg-rose-50 border-rose-300 text-rose-950'
-                  }`}>
-                    {activeVersionReview.decision === 'passed' ? (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    ) : activeVersionReview.decision === 'revision_required' ? (
-                      <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle className="w-6 h-6 text-rose-600 flex-shrink-0 mt-0.5" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-bold text-sm sm:text-base">
-                        {activeVersionReview.decision === 'passed' && 'ผลงานได้รับการอนุมัติผ่าน'}
-                        {activeVersionReview.decision === 'revision_required' && 'ต้องแก้ไขตามคำแนะนำของแอดมิน'}
-                        {activeVersionReview.decision === 'rejected' && 'ไม่ผ่านการรับรอง'}
-                      </p>
-                      <p className="text-xs sm:text-sm opacity-90 mt-1 leading-relaxed">
-                        {activeVersionReview.decision === 'passed' && 'เอกสารถูกต้องตามเกณฑ์และครบถ้วนสมบูรณ์'}
-                        {activeVersionReview.decision === 'revision_required' && 'กรุณาปรับปรุงเอกสารแล้วส่งเวอร์ชันใหม่'}
-                        {activeVersionReview.decision === 'rejected' && 'เอกสารไม่ตรงตามข้อกำหนด'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Sub-tasks status summary in review */}
-                  {activeVersionReview.subTaskReviews && (
-                    <div className="p-3.5 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-2">
-                      <span className="text-xs font-bold text-purple-950 block">สรุปการตรวจงานย่อย:</span>
-                      {Object.values(activeVersionReview.subTaskReviews).map((sr, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs sm:text-sm bg-white p-2 rounded-xl border border-purple-100">
-                          <span className="text-slate-800 font-medium truncate">{sr.subTaskTitle}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg flex-shrink-0 ml-2 ${
-                            sr.decision === 'passed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {sr.decision === 'passed' ? '✓ ผ่าน' : '⚠️ แก้ไข'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Comments */}
-                  {activeVersionReview.comments && (
-                    <div className="pt-2">
-                      <span className="text-xs font-bold text-slate-700 block mb-1">ความเห็นการตรวจสอบ:</span>
-                      <p className="text-xs sm:text-sm text-slate-800 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 leading-relaxed whitespace-pre-line font-medium">
-                        {activeVersionReview.comments}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Recommendations */}
-                  {activeVersionReview.recommendations && (
-                    <div className="pt-2 border-t border-slate-100">
-                      <span className="text-xs font-bold text-amber-900 block mb-1">ข้อเสนอแนะเพิ่มเติม:</span>
-                      <p className="text-xs sm:text-sm text-slate-800 bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200 leading-relaxed font-medium">
-                        {activeVersionReview.recommendations}
-                      </p>
-                    </div>
-                  )}
-
-                  <p className="text-xs text-slate-400 pt-1 text-right">
-                    ตรวจโดย <b>{activeVersionReview.reviewerName}</b> (Admin) • {new Date(activeVersionReview.reviewedAt).toLocaleString('th-TH')}
-                  </p>
+            {/* Sub-tasks progress meter if topic has sub-tasks */}
+            {topicSubTasks.length > 0 && (
+              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">ความคืบหน้างานย่อย:</span>
+                  <span className="font-bold text-blue-600">{passedSubTasksCount} / {topicSubTasks.length} ข้อ ({Math.round((passedSubTasksCount / topicSubTasks.length) * 100)}%)</span>
                 </div>
-              ) : (
-                <div className="p-6 text-center space-y-4">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-500 border border-amber-200 flex items-center justify-center mx-auto shadow-2xs">
-                    <Clock className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm sm:text-base font-bold text-slate-800">รอแอดมินพิจารณาอนุมัติ</p>
-                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
-                      คุณครูส่งผลงานเวอร์ชันนี้เข้าระบบแล้ว และกำลังรอฝ่ายแอดมินตรวจสอบ
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                    style={{ width: `${(passedSubTasksCount / topicSubTasks.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Review feedback details if reviewed */}
+            {activeVersionReview ? (
+              <div className="space-y-3 pt-1">
+                {activeVersionReview.comments && (
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-600">ความเห็นการตรวจสอบ:</span>
+                    <p className="text-xs text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line font-medium">
+                      {activeVersionReview.comments}
                     </p>
                   </div>
+                )}
+
+                {activeVersionReview.recommendations && (
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-amber-900">ข้อเสนอแนะเพิ่มเติม:</span>
+                    <p className="text-xs text-slate-800 bg-amber-50/70 p-3 rounded-xl border border-amber-200 leading-relaxed font-medium">
+                      {activeVersionReview.recommendations}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 text-[11px] text-slate-400 text-right border-t border-slate-100">
+                  ตรวจโดย <b>{activeVersionReview.reviewerName}</b> • {new Date(activeVersionReview.reviewedAt).toLocaleString('th-TH')}
                 </div>
-              )}
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center space-y-1.5">
+                <Clock className="w-5 h-5 text-amber-500 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">ยังไม่ได้รับการตรวจประเมิน</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  {isAdmin 
+                    ? 'แอดมินสามารถให้คะแนนและบันทึกผลได้จากแผงงานย่อยด้านซ้าย' 
+                    : 'คุณครูส่งผลงานเวอร์ชันนี้แล้ว และกำลังรอฝ่ายบริหาร/แอดมินตรวจ'}
+                </p>
+              </div>
+            )}
+
+            {/* Quick action for teacher when revision required */}
+            {!isAdmin && (submission.status === 'revision_required' || activeVersionReview?.decision === 'revision_required') && (
+              <button
+                type="button"
+                onClick={() => setShowResubmitModal(true)}
+                className="w-full mt-2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>ส่งงานเวอร์ชันใหม่ (v{submission.currentVersionNumber + 1})</span>
+              </button>
+            )}
+          </div>
+
+          {/* Card 2: Teacher Profile Card (ข้อมูลครูผู้ส่งผลงาน) */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+              <User className="w-4 h-4 text-blue-600" />
+              ข้อมูลครูผู้ส่งผลงาน
+            </h3>
+            
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md flex-shrink-0">
+                {submission.teacherName?.slice(0, 2) || 'ครู'}
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-slate-900 truncate">{submission.teacherName}</h4>
+                <p className="text-xs text-slate-500 truncate">{submission.teacherDepartment || 'กลุ่มสาระการเรียนรู้'}</p>
+                <p className="text-[11px] text-slate-400 truncate">{submission.teacherEmail}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+              <div className="p-2.5 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-slate-400 block">วันที่ส่งเข้าระบบ</span>
+                <span className="font-bold text-slate-700 block truncate">
+                  {new Date(submission.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                </span>
+              </div>
+              <div className="p-2.5 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-slate-400 block">เวอร์ชันปัจจุบัน</span>
+                <span className="font-bold text-blue-600 block">
+                  v{submission.currentVersionNumber}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Google Drive Sync & Direct Folder Access */}
+          <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/70 p-6 rounded-3xl border border-blue-200/80 shadow-sm space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-blue-950 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-blue-600" />
+                คลัง Google Drive
+              </h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 border border-blue-200">
+                ซิงค์สด 100%
+              </span>
+            </div>
+
+            <p className="text-xs text-blue-900 leading-relaxed font-mono bg-white/80 p-2.5 rounded-xl border border-blue-200/60 truncate" title={`Google Drive / ${submission.topicTitle || 'ผลงานครู'} / ${submission.teacherName} /`}>
+              📁 Drive / {submission.topicTitle || 'ผลงานครู'} / {submission.teacherName}
+            </p>
+
+            <a
+              href={
+                activeVersion?.files?.find(f => f.driveUrl && f.driveUrl.includes('drive.google.com'))?.driveUrl 
+                || 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>เปิดดูโฟลเดอร์ใน Google Drive</span>
+            </a>
+          </div>
+
+          {/* Card 4: Topic Criteria & Constraints */}
+          {(topic || round) && (
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <Tag className="w-4 h-4 text-emerald-600" />
+                ข้อกำหนดของหัวข้องาน
+              </h3>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between py-1 border-b border-slate-50">
+                  <span className="text-slate-500">หมวดหมู่งาน:</span>
+                  <span className="font-bold text-slate-800">{topic?.category || 'เอกสารวิชาการ'}</span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-50">
+                  <span className="text-slate-500">กำหนดส่ง:</span>
+                  <span className="font-bold text-slate-800">
+                    {(topic?.dueDate || round?.dueAt) 
+                      ? new Date(topic?.dueDate || round?.dueAt!).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) 
+                      : 'ไม่ระบุ'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-slate-50">
+                  <span className="text-slate-500">รูปแบบไฟล์:</span>
+                  <span className="font-medium text-slate-600">
+                    {topic?.allowedFileExtensions?.join(', ') || '.pdf, .docx, .xlsx'}
+                  </span>
+                </div>
+                {(topic?.academicYear || round?.academicYear) && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-slate-500">ภาคเรียน/ปีการศึกษา:</span>
+                    <span className="font-bold text-slate-700">
+                      {topic?.semester || round?.semester || '1'}/{topic?.academicYear || round?.academicYear || '2569'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
