@@ -46,8 +46,8 @@ export const SubmissionListPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>(getUsers());
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
 
-  // View state: 'topics' (Categorized by Admin Assigned Topics) or 'all' (Feed list)
-  const [activeTab, setActiveTab] = useState<'topics' | 'all'>('topics');
+  // View state: 'all' (Feed list) or 'topics' (Categorized by Admin Assigned Topics)
+  const [activeTab, setActiveTab] = useState<'all' | 'topics'>('all');
 
   // Filter & Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,12 +174,28 @@ export const SubmissionListPage: React.FC = () => {
       cancelButtonColor: '#64748b'
     }).then(res => {
       if (res.isConfirmed) {
+        // Also auto-pass all sub-tasks if topic has them
+        const matchingTopic = topics.find(t => t.id === sub.topicId);
+        let subTaskReviewsToSave: any = undefined;
+        if (matchingTopic?.subTasks && matchingTopic.subTasks.length > 0) {
+          subTaskReviewsToSave = {};
+          matchingTopic.subTasks.forEach(st => {
+            subTaskReviewsToSave[st.id] = {
+              subTaskId: st.id,
+              subTaskTitle: st.title,
+              decision: 'passed',
+              feedback: 'ผ่านการรับรอง'
+            };
+          });
+        }
+
         submitAdminReview(
           sub.id,
           'passed',
           'เอกสารครบถ้วนสมบูรณ์ ถูกต้องตามเกณฑ์มาตรฐาน อนุมัติผ่านเรียบร้อย',
           '',
-          currentUser
+          currentUser,
+          subTaskReviewsToSave
         );
         triggerAutoSyncToGoogleSheets('ADMIN_QUICK_APPROVE_LIST');
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
@@ -208,6 +224,42 @@ export const SubmissionListPage: React.FC = () => {
   const pendingCount = scopedSubmissions.filter(s => s.status === 'submitted' || s.status === 'under_review').length;
   const revisionCount = scopedSubmissions.filter(s => s.status === 'revision_required').length;
 
+  // Active topic IDs set for identifying unassigned/past topics
+  const activeTopicIds = useMemo(() => new Set(topics.map(t => t.id)), [topics]);
+
+  // Submissions that belong to past/deleted topics or general category (Never hide any work!)
+  const unassignedSubmissions = useMemo(() => {
+    return scopedSubmissions.filter(s => {
+      const isUnassigned = !s.topicId || !activeTopicIds.has(s.topicId);
+      const matchesSearch = 
+        s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.teacherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.topicTitle && s.topicTitle.toLowerCase().includes(searchTerm.toLowerCase()));
+      return isUnassigned && matchesSearch;
+    });
+  }, [scopedSubmissions, activeTopicIds, searchTerm]);
+
+  // Unified available topic filters (combines topics and any unlisted topic titles from submissions)
+  const availableTopicFilters = useMemo(() => {
+    const map = new Map<string, string>();
+    topics.forEach(t => map.set(t.id, t.title));
+    submissions.forEach(s => {
+      const tid = s.topicId || s.topicTitle;
+      if (tid && !map.has(tid)) {
+        map.set(tid, s.topicTitle || 'หัวข้อเดิม');
+      }
+    });
+    return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
+  }, [topics, submissions]);
+
+  // Helper to format submission title without redundant topic prefix
+  const formatSubmissionTitle = (sub: Submission) => {
+    if (sub.topicTitle && sub.title.startsWith(`${sub.topicTitle} - `)) {
+      return sub.title.replace(`${sub.topicTitle} - `, '');
+    }
+    return sub.title;
+  };
+
   // Deadline countdown helper
   const getRemainingDaysText = (dueIso: string) => {
     const now = new Date().getTime();
@@ -230,7 +282,7 @@ export const SubmissionListPage: React.FC = () => {
     return Array.from(set);
   }, [topics]);
 
-  // Filtered Topics for Tab 1
+  // Filtered Topics for Topics View
   const filteredTopics = useMemo(() => {
     return topics.filter(t => {
       const matchSearch = 
@@ -242,7 +294,7 @@ export const SubmissionListPage: React.FC = () => {
     });
   }, [topics, searchTerm, categoryFilter]);
 
-  // Filtered Submissions for Tab 2
+  // Filtered Submissions for All Submissions View
   const filteredSubmissions = useMemo(() => {
     return scopedSubmissions.filter(sub => {
       const matchesSearch = 
@@ -252,7 +304,9 @@ export const SubmissionListPage: React.FC = () => {
         (sub.teacherDepartment && sub.teacherDepartment.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchesStatus = statusFilter === 'all' ? true : sub.status === statusFilter;
-      const matchesTopic = topicFilter === 'all' ? true : sub.topicId === topicFilter;
+      const matchesTopic = topicFilter === 'all' 
+        ? true 
+        : (sub.topicId === topicFilter || sub.topicTitle === topicFilter);
 
       return matchesSearch && matchesStatus && matchesTopic;
     });
@@ -396,27 +450,27 @@ export const SubmissionListPage: React.FC = () => {
       <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-1">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveTab('topics')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'topics'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-            }`}
-          >
-            <FolderOpen className="w-4 h-4" />
-            จำแนกตามหัวข้องานที่แอดมินมอบหมาย ({topics.length})
-          </button>
-          
-          <button
             onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'all'
                 ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
             }`}
           >
             <FileText className="w-4 h-4" />
-            รายการผลงานทั้งหมด ({scopedSubmissions.length})
+            <span>รายการผลงานทั้งหมด ({scopedSubmissions.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('topics')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'topics'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>จำแนกตามหัวข้องาน ({topics.length})</span>
           </button>
         </div>
 
@@ -649,7 +703,7 @@ export const SubmissionListPage: React.FC = () => {
                                     to={`/submissions/${sub.id}`}
                                     className="text-xs sm:text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors"
                                   >
-                                    {sub.title}
+                                    {formatSubmissionTitle(sub)}
                                   </Link>
                                   <StatusBadge status={sub.status} isLate={sub.isLate} />
                                   {isCurrentUserSub && (
@@ -702,6 +756,102 @@ export const SubmissionListPage: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Unassigned / Past Topics Submissions (Never hide any work!) */}
+              {unassignedSubmissions.length > 0 && (
+                <div className="bg-white rounded-3xl border border-amber-200/90 shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-50/70 via-white to-slate-50/60 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
+                        <FolderOpen className="w-5 h-5 text-amber-700" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                          งานส่งในหัวข้อเดิม / งานอื่นๆ ({unassignedSubmissions.length} รายการ)
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          ผลงานที่ครูส่งไว้ในหัวข้อเดิม หรือไม่อยู่ในหัวข้อปัจจุบัน สามารถเปิดตรวจได้ตามปกติ
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold px-3 py-1 rounded-xl bg-amber-100 text-amber-900 border border-amber-200 shrink-0">
+                      รวม {unassignedSubmissions.length} งาน
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {unassignedSubmissions.map(sub => {
+                      const isCurrentUserSub = currentUser && sub.teacherUid === currentUser.uid;
+                      return (
+                        <div
+                          key={sub.id}
+                          className={`p-4 sm:px-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors ${
+                            isCurrentUserSub ? 'bg-blue-50/20' : ''
+                          }`}
+                        >
+                          <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[11px] font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-semibold border border-blue-100">
+                                v{sub.currentVersionNumber}
+                              </span>
+                              <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                {sub.topicTitle || 'หัวข้อเดิม'}
+                              </span>
+                              <Link
+                                to={`/submissions/${sub.id}`}
+                                className="text-xs sm:text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors"
+                              >
+                                {formatSubmissionTitle(sub)}
+                              </Link>
+                              <StatusBadge status={sub.status} isLate={sub.isLate} />
+                              {isCurrentUserSub && (
+                                <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
+                                  งานของฉัน
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-500">
+                              <span className="flex items-center gap-1.5 text-slate-800 font-medium">
+                                <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
+                                {sub.teacherName}
+                              </span>
+                              {sub.teacherDepartment && (
+                                <span className="text-slate-400 hidden sm:inline">
+                                  • {sub.teacherDepartment}
+                                </span>
+                              )}
+                              <span>
+                                • ส่งเมื่อ: {new Date(sub.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isAdmin && sub.status !== 'passed' && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleQuickApproveFromList(e, sub)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                                title="คลิกเพื่ออนุมัติรับรองผลงานนี้ทันที"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>อนุมัติทันที</span>
+                              </button>
+                            )}
+                            <Link
+                              to={`/submissions/${sub.id}`}
+                              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-semibold transition-colors bg-white shadow-2xs"
+                            >
+                              {isAdmin ? 'ตรวจงาน / ดูรายละเอียด' : 'ดูรายละเอียด'} <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -732,11 +882,11 @@ export const SubmissionListPage: React.FC = () => {
                 <select
                   value={topicFilter}
                   onChange={(e) => setTopicFilter(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
-                  <option value="all">ทุกหัวข้อที่แอดมินมอบหมาย ({topics.length})</option>
-                  {topics.map(t => (
-                    <option key={t.id} value={t.id}>[{t.category}] {t.title}</option>
+                  <option value="all">ทุกหัวข้องาน ({availableTopicFilters.length})</option>
+                  {availableTopicFilters.map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
                   ))}
                 </select>
               </div>
@@ -781,6 +931,9 @@ export const SubmissionListPage: React.FC = () => {
             ) : (
               <div className="divide-y divide-slate-100">
                 {filteredSubmissions.map((sub) => {
+                  const matchingTopic = topics.find(t => t.id === sub.topicId);
+                  const subTasksCount = matchingTopic?.subTasks?.length || 0;
+
                   return (
                     <div
                       key={sub.id}
@@ -794,11 +947,16 @@ export const SubmissionListPage: React.FC = () => {
                           <span className="text-[10px] font-semibold text-blue-800 bg-blue-100/70 px-2 py-0.5 rounded border border-blue-200">
                             {sub.topicTitle || 'ผลงานครู'}
                           </span>
+                          {subTasksCount > 0 && (
+                            <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                              งานย่อย {subTasksCount} ข้อ
+                            </span>
+                          )}
                           <Link
                             to={`/submissions/${sub.id}`}
                             className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors"
                           >
-                            {sub.title}
+                            {formatSubmissionTitle(sub)}
                           </Link>
                           <StatusBadge status={sub.status} isLate={sub.isLate} />
                         </div>
