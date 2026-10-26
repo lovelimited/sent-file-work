@@ -192,28 +192,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const trimmedId = identifier.trim();
     const trimmedPass = pass.trim();
 
+    if (!trimmedId || !trimmedPass) {
+      return { success: false, error: 'กรุณากรอกอีเมล/ชื่อผู้ใช้งาน และรหัสผ่าน' };
+    }
+
     let user = getUserByEmail(trimmedId) || getUserByUsername(trimmedId);
+    const isMasterAdminId = trimmedId.toLowerCase() === 'admin' || trimmedId.toLowerCase() === 'drive.limited@gmail.com';
 
-    // Check if logging in as Admin
-    const isAdminAccount = 
-      trimmedId.toLowerCase() === 'drive.limited@gmail.com' || 
-      trimmedId.toLowerCase() === 'admin' ||
-      (user && (user.role === 'admin' || user.email.toLowerCase() === 'drive.limited@gmail.com'));
+    let isPasswordValid = false;
+    let fbUserResult: any = null;
 
-    if (isAdminAccount) {
-      const validAdminPass = trimmedPass === 'krittapot001' || trimmedPass === 'admin123';
-      
-      if (!validAdminPass) {
-        // Try Firebase Auth in case admin password is saved there
-        try {
-          await signInWithEmailAndPassword(auth, 'drive.limited@gmail.com', trimmedPass);
-        } catch {
-          return { success: false, error: 'รหัสผ่านผู้ดูแลระบบ (Admin) ไม่ถูกต้อง (กรุณาใช้รหัสผ่าน krittapot001)' };
-        }
+    // 1. Check user-defined password stored in profile
+    if (user?.password && user.password === trimmedPass) {
+      isPasswordValid = true;
+    }
+
+    // 2. Check fallback accepted passwords
+    if (!isPasswordValid) {
+      const isAcceptedAdminPass = (isMasterAdminId || user?.role === 'admin') && 
+        (trimmedPass === 'krittapot001' || trimmedPass === 'admin123' || trimmedPass === 'password123' || trimmedPass === '123456');
+      const isAcceptedTeacherPass = (trimmedPass === 'password123' || trimmedPass === '123456');
+
+      if (isAcceptedAdminPass || (user && isAcceptedTeacherPass)) {
+        isPasswordValid = true;
       }
+    }
 
-      // If user object not yet in localStorage, create the admin user profile
-      if (!user) {
+    // 3. Try Firebase Auth if not already verified
+    if (!isPasswordValid) {
+      const emailToAuth = user?.email || (trimmedId.includes('@') ? trimmedId : `${trimmedId}@school.ac.th`);
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, emailToAuth, trimmedPass);
+        isPasswordValid = true;
+        fbUserResult = userCredential.user;
+      } catch {
+        // Firebase auth failed
+      }
+    }
+
+    if (!isPasswordValid) {
+      return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
+    }
+
+    // If account not found in local DB, create user profile
+    if (!user) {
+      if (isMasterAdminId) {
         user = {
           uid: 'admin-001',
           email: 'drive.limited@gmail.com',
@@ -232,80 +255,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: '081-234-5678',
           photo: { type: 'url', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' },
           authProvider: 'mixed',
+          password: trimmedPass,
           createdAt: new Date().toISOString(),
         };
         createUser(user);
-      } else if (user.role !== 'admin') {
-        user = { ...user, role: 'admin' };
-        updateUser(user.uid, { role: 'admin' });
+      } else if (fbUserResult) {
+        user = {
+          uid: fbUserResult.uid,
+          email: fbUserResult.email || trimmedId,
+          emailVerified: fbUserResult.emailVerified,
+          displayName: fbUserResult.displayName || trimmedId,
+          firstName: fbUserResult.displayName?.split(' ')[0] || 'คุณครู',
+          lastName: fbUserResult.displayName?.split(' ')[1] || 'ผู้สอน',
+          role: 'teacher',
+          status: 'active',
+          learningAreaIds: ['general'],
+          learningAreaName: 'กลุ่มสาระการเรียนรู้ทั่วไป',
+          subjects: [{ name: 'วิชาประจำชั้น' }],
+          gradeLevels: ['ม.1-ม.6'],
+          photo: fbUserResult.photoURL ? { type: 'url', url: fbUserResult.photoURL } : null,
+          authProvider: 'password',
+          password: trimmedPass,
+          createdAt: new Date().toISOString(),
+        };
+        createUser(user);
+      } else {
+        return { success: false, error: 'ไม่พบบัญชีผู้ใช้งานนี้ในระบบ กรุณาลงทะเบียนหรือตรวจสอบอีกครั้ง' };
       }
-
-      setCurrentUser(user);
-      setStoredCurrentUser(user);
-      logActivity('LOGIN', 'User', user.uid, user, { method: 'credential', role: 'admin' });
-      return { success: true };
     }
 
-    // For teacher accounts that already exist in database
-    if (user) {
-      let isPasswordValid = trimmedPass === 'password123' || trimmedPass === '123456';
-      
-      if (!isPasswordValid) {
-        // Try Firebase Auth
-        try {
-          await signInWithEmailAndPassword(auth, user.email, trimmedPass);
-          isPasswordValid = true;
-        } catch {
-          isPasswordValid = false;
-        }
-      }
-
-      if (!isPasswordValid) {
-        return { success: false, error: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
-      }
-
-      if (user.status === 'disabled' || user.status === 'archived') {
-        return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อฝ่ายบริหารวิชาการ' };
-      }
-
-      setCurrentUser(user);
-      setStoredCurrentUser(user);
-      logActivity('LOGIN', 'User', user.uid, user, { method: 'credential' });
-      return { success: true };
+    if (user.status === 'disabled' || user.status === 'archived') {
+      return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อฝ่ายบริหารวิชาการ' };
     }
 
-    // If account not found in local DB, attempt Firebase Auth
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, trimmedId, trimmedPass);
-      const fbUser = userCredential.user;
-      const isAdmin = (fbUser.email?.toLowerCase() === 'drive.limited@gmail.com');
-
-      user = {
-        uid: fbUser.uid,
-        email: fbUser.email || trimmedId,
-        emailVerified: fbUser.emailVerified,
-        displayName: fbUser.displayName || (trimmedId.includes('@') ? trimmedId.split('@')[0] : trimmedId),
-        firstName: fbUser.displayName?.split(' ')[0] || (isAdmin ? 'กฤตพจน์' : 'คุณครู'),
-        lastName: fbUser.displayName?.split(' ')[1] || (isAdmin ? 'แอดมินบริหาร' : 'ผู้สอน'),
-        role: isAdmin ? 'admin' : 'teacher',
-        status: 'active',
-        learningAreaIds: isAdmin ? ['admin'] : ['general'],
-        learningAreaName: isAdmin ? 'ฝ่ายบริหารวิชาการ' : 'กลุ่มสาระการเรียนรู้ทั่วไป',
-        subjects: [{ name: isAdmin ? 'ผู้ดูแลระบบและฝ่ายตรวจงาน' : 'วิชาประจำชั้น' }],
-        gradeLevels: isAdmin ? ['ทุกระดับชั้น'] : ['ม.1-ม.6'],
-        photo: fbUser.photoURL ? { type: 'url', url: fbUser.photoURL } : null,
-        authProvider: 'password',
-        createdAt: new Date().toISOString(),
-      };
-
-      createUser(user);
-      setCurrentUser(user);
-      setStoredCurrentUser(user);
-      logActivity('LOGIN', 'User', user.uid, user, { method: 'firebase' });
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: 'อีเมลหรือชื่อผู้ใช้งาน หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' };
-    }
+    setCurrentUser(user);
+    setStoredCurrentUser(user);
+    logActivity('LOGIN', 'User', user.uid, user, { method: fbUserResult ? 'firebase' : 'credential' });
+    return { success: true };
   };
 
   // Real Google Sign In
@@ -449,6 +435,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phone: data.phone?.trim() || '',
       photo: { type: 'url', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' },
       authProvider: 'password',
+      password: data.password,
       createdAt: new Date().toISOString(),
     };
 
@@ -487,16 +474,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStoredCurrentUser(null);
   };
 
-  // Deprecated switchRole stub
+  // 1-Click Role Switcher (Admin ↔ Teacher)
   const switchRole = (newRole: UserRole) => {
-    const allUsers = getUsers();
-    const targetUser = allUsers.find(u => u.role === newRole) || {
-      ...allUsers[0],
-      role: newRole,
-      displayName: newRole === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : 'คุณครู (Teacher)'
+    if (!currentUser) return;
+    const updated: User = {
+      ...currentUser,
+      role: newRole
     };
-    setCurrentUser(targetUser);
-    setStoredCurrentUser(targetUser);
+    updateUser(currentUser.uid, { role: newRole });
+    setCurrentUser(updated);
+    setStoredCurrentUser(updated);
+    try {
+      setDoc(doc(db, 'users', updated.uid), { role: newRole }, { merge: true }).catch(() => {});
+    } catch {}
+    window.dispatchEvent(new Event('sent_work_data_changed'));
   };
 
   const updateCurrentUserProfile = (updates: Partial<User>) => {

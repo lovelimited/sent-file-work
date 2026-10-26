@@ -19,6 +19,7 @@ export interface User {
   phone?: string;
   photo: { type: 'drive' | 'url'; fileId?: string; url?: string } | null;
   authProvider: 'google' | 'password' | 'mixed';
+  password?: string;
   createdAt?: string;
   updatedAt?: string;
   lastLoginAt?: string;

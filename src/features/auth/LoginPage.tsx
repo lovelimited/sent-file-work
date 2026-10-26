@@ -124,10 +124,8 @@ export const LoginPage: React.FC = () => {
                   <li>ไปที่ลิงก์ <a href="https://console.firebase.google.com/project/send-file-51069/authentication/providers" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold;">Firebase Console &gt; Sign-in method</a></li>
                   <li>คลิกเลือก <b>Google</b></li>
                   <li>กดเปิดสวิตช์ <b>Enable</b></li>
-                  <li>เลือกอีเมล Support (drive.limited@gmail.com) แล้วกด <b>Save</b></li>
                 </ol>
               </div>
-              <p style="font-size: 12px; color: #64748b; margin: 0;">* สามารถเข้าสู่ระบบด้วยอีเมล <b>drive.limited@gmail.com</b> และรหัสผ่าน <b>krittapot001</b> ได้ทันทีครับ</p>
             </div>
           `,
           icon: 'info',
