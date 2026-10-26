@@ -12,6 +12,7 @@ import {
   submitAdminReview
 } from '../../lib/storage';
 import { triggerAutoSyncToGoogleSheets } from '../../lib/googleSheetsSync';
+import { uploadFilesToGoogleDrive } from '../../lib/googleDriveService';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { 
   ArrowLeft, 
@@ -106,10 +107,14 @@ export const SubmissionDetailPage: React.FC = () => {
   // Resubmit Form state
   const [resubmitNote, setResubmitNote] = useState('');
   const [resubmitFiles, setResubmitFiles] = useState<Array<{
+    fileObject?: File;
     fileName: string;
     fileSizeBytes: number;
     mimeType: string;
     previewUrl?: string;
+    downloadUrl?: string;
+    driveFileId?: string;
+    driveUrl?: string;
     subTaskId?: string;
     subTaskTitle?: string;
   }>>([]);
@@ -403,6 +408,7 @@ export const SubmissionDetailPage: React.FC = () => {
   const handleResubmitFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const incomingFiles = Array.from(e.target.files).map(file => ({
+      fileObject: file,
       fileName: file.name,
       fileSizeBytes: file.size,
       mimeType: file.type || 'application/octet-stream',
@@ -417,31 +423,107 @@ export const SubmissionDetailPage: React.FC = () => {
     setResubmitLinkInput('');
   };
 
-  const handleExecuteResubmit = (e: React.FormEvent) => {
+  const handleExecuteResubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (resubmitFiles.length === 0 && resubmitLinks.length === 0) {
       Swal.fire('กรุณาแนบไฟล์หรือลิงก์', 'กรุณาอัปโหลดเอกสารที่แก้ไขแล้วอย่างน้อย 1 รายการ', 'warning');
       return;
     }
-    if (!currentUser) return;
+    if (!currentUser || !submission) return;
+
+    let finalFiles = [...resubmitFiles];
+    let driveFolderUrl = 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
+
+    // Upload files to Google Drive
+    const filesToUpload = resubmitFiles.filter(f => f.fileObject);
+    if (filesToUpload.length > 0) {
+      Swal.fire({
+        title: 'กำลังอัปโหลดไฟล์เวอร์ชันใหม่ไปยัง Google Drive...',
+        html: `
+          <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+            <p>ระบบกำลังบันทึกไฟล์แก้ไขเข้าสู่โฟลเดอร์ Google Drive ของสถานศึกษา...</p>
+            <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 font-mono text-[11px] truncate">
+              📁 Google Drive / ${submission.topicTitle || 'ผลงานครู'} / ${currentUser.displayName} /
+            </div>
+            <p class="text-slate-400 text-[10px]">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
+          </div>
+        `,
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const driveRes = await uploadFilesToGoogleDrive({
+        topicTitle: submission.topicTitle || 'ผลงานครู',
+        teacherName: currentUser.displayName,
+        files: resubmitFiles
+      });
+
+      if (driveRes.success) {
+        if (driveRes.folderUrl) driveFolderUrl = driveRes.folderUrl;
+        finalFiles = resubmitFiles.map((f, i) => {
+          const up = driveRes.files.find(uf =>
+            uf.fileName === f.fileName ||
+            (uf as any).originalName === f.fileName ||
+            (uf as any).savedName === f.fileName
+          ) || driveRes.files[i];
+
+          const fileId = up?.fileId;
+          const fileUrl = up?.fileUrl || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : undefined);
+          const previewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : (f.previewUrl || up?.previewUrl);
+          const downloadUrl = up?.downloadUrl || (fileId ? `https://drive.google.com/uc?export=download&id=${fileId}` : undefined) || '#';
+
+          return {
+            fileName: f.fileName,
+            fileSizeBytes: f.fileSizeBytes,
+            mimeType: f.mimeType,
+            previewUrl,
+            downloadUrl,
+            driveFileId: fileId,
+            driveUrl: fileUrl,
+            subTaskId: f.subTaskId,
+            subTaskTitle: f.subTaskTitle
+          };
+        });
+      }
+    }
 
     addSubmissionVersion(
       submission.id,
-      resubmitFiles,
+      finalFiles,
       resubmitNote,
       resubmitLinks,
       currentUser
     );
 
+    // Auto-sync update to Google Sheets
+    triggerAutoSyncToGoogleSheets('TEACHER_RESUBMIT');
+
     setShowResubmitModal(false);
+    confetti({ particleCount: 70, spread: 60 });
 
     Swal.fire({
       title: 'ส่งงานเวอร์ชันใหม่สำเร็จ!',
-      text: `ส่งเวอร์ชัน ${submission.currentVersionNumber + 1} เข้าระบบเพื่อให้แอดมินตรวจสอบใหม่เรียบร้อยแล้ว`,
+      html: `
+        <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+          <p>ส่งเวอร์ชัน ${submission.currentVersionNumber + 1} เข้าระบบและบันทึกลง Google Drive เรียบร้อยแล้ว</p>
+          <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 font-mono text-[11px] truncate">
+            📁 Google Drive / ${submission.topicTitle || 'ผลงานครู'} / ${currentUser.displayName} /
+          </div>
+        </div>
+      `,
       icon: 'success',
-      confirmButtonColor: '#2563eb'
-    }).then(() => {
-      window.location.reload();
+      showCancelButton: true,
+      confirmButtonText: '📂 ดูโฟลเดอร์ใน Google Drive',
+      cancelButtonText: 'ตกลง',
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#64748b'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.open(driveFolderUrl, '_blank');
+      }
+      reloadSubmissionData();
     });
   };
 
@@ -1415,6 +1497,16 @@ export const SubmissionDetailPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleExecuteResubmit} className="space-y-4">
+              <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-center gap-2.5 text-xs text-blue-900">
+                <FolderOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                <div>
+                  <p className="font-bold">ซิงค์ลง Google Drive อัตโนมัติ:</p>
+                  <p className="font-mono text-[11px] text-blue-700 truncate">
+                    📁 Google Drive / {submission.topicTitle || 'ผลงานครู'} / {currentUser?.displayName} /
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   อัปโหลดไฟล์ที่แก้ไขแล้ว <span className="text-rose-500">*</span>

@@ -8,6 +8,7 @@ import {
   getSettings
 } from '../../lib/storage';
 import { uploadFilesToGoogleDrive } from '../../lib/googleDriveService';
+import { triggerAutoSyncToGoogleSheets } from '../../lib/googleSheetsSync';
 import { SubmissionTopic, TopicSubTask, Submission } from '../../types';
 import { 
   UploadCloud, 
@@ -356,6 +357,9 @@ export const SubmitWorkPage: React.FC = () => {
         links,
         currentUser
       );
+
+      // Auto sync immediately to Google Sheets report
+      triggerAutoSyncToGoogleSheets('TEACHER_SUBMIT');
 
       // Celebration effect
       confetti({

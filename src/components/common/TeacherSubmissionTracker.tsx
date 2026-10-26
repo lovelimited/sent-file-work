@@ -33,7 +33,8 @@ import {
   ListTodo,
   FileSpreadsheet,
   Download,
-  RefreshCw
+  RefreshCw,
+  FolderOpen
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { syncDataToGoogleSheets } from '../../lib/googleSheetsSync';
@@ -236,6 +237,17 @@ export const TeacherSubmissionTracker: React.FC = () => {
           {/* Admin-only Operations: Google Sheets, Live Sync, and CSV Export */}
           {role === 'admin' && (
             <>
+              <a
+                href="https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="เปิดโฟลเดอร์ Google Drive รวมศูนย์ของสถานศึกษา (เฉพาะแอดมิน)"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
+                <span>Google Drive</span>
+              </a>
+
               <a
                 href="https://docs.google.com/spreadsheets/d/1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU"
                 target="_blank"

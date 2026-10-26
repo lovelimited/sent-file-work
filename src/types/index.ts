@@ -178,6 +178,8 @@ export interface LibraryFile {
   fileSizeBytes: number;
   fileType: string;
   driveFileId?: string;
+  driveUrl?: string;
+  previewUrl?: string;
   downloadUrl: string;
   uploadedByName: string;
   uploadedAt: string;

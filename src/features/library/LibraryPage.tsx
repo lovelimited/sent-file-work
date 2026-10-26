@@ -11,6 +11,7 @@ import {
   getSubmissionFilesGroupedByTopic,
   TopicFolderItem
 } from '../../lib/storage';
+import { uploadFilesToGoogleDrive } from '../../lib/googleDriveService';
 import { 
   BookOpen, 
   Search, 
@@ -100,6 +101,7 @@ export const LibraryPage: React.FC = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileSize, setNewFileSize] = useState(2500000);
   const [newFileType, setNewFileType] = useState('PDF');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Inline Category Management State
   const [isEditingCategory, setIsEditingCategory] = useState(false);
@@ -270,13 +272,56 @@ export const LibraryPage: React.FC = () => {
     );
   });
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newFileName.trim()) {
       Swal.fire('กรุณากรอกข้อมูลให้ครบถ้วน', '', 'warning');
       return;
     }
     if (!currentUser) return;
+
+    let downloadUrl = '#';
+    let driveUrl: string | undefined = undefined;
+    let driveFileId: string | undefined = undefined;
+    let driveFolderUrl = 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd';
+
+    if (selectedFile) {
+      Swal.fire({
+        title: 'กำลังอัปโหลดเอกสารไปยัง Google Drive...',
+        html: `
+          <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+            <p>ระบบกำลังบันทึกเอกสารเข้าสู่คลัง Google Drive กลางของสถานศึกษา...</p>
+            <div class="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 font-mono text-[11px] truncate">
+              📁 Google Drive / คลังเอกสารกลาง & แบบฟอร์ม /
+            </div>
+            <p class="text-slate-400 text-[10px]">กรุณารอสักครู่ ห้ามปิดหน้าต่างนี้</p>
+          </div>
+        `,
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const driveRes = await uploadFilesToGoogleDrive({
+        topicTitle: 'คลังเอกสารกลาง & แบบฟอร์ม',
+        teacherName: '',
+        files: [{
+          fileObject: selectedFile,
+          fileName: newFileName.trim() || selectedFile.name,
+          fileSizeBytes: selectedFile.size,
+          mimeType: selectedFile.type || 'application/octet-stream',
+        }]
+      });
+
+      if (driveRes.success && driveRes.files.length > 0) {
+        if (driveRes.folderUrl) driveFolderUrl = driveRes.folderUrl;
+        const up = driveRes.files[0];
+        driveFileId = up.fileId;
+        driveUrl = up.fileUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : undefined);
+        downloadUrl = up.downloadUrl || (driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : '#');
+      }
+    }
 
     addLibraryFile(
       {
@@ -286,7 +331,9 @@ export const LibraryPage: React.FC = () => {
         fileName: newFileName.trim(),
         fileSizeBytes: newFileSize,
         fileType: newFileType,
-        downloadUrl: '#',
+        driveFileId,
+        driveUrl,
+        downloadUrl,
         uploadedByName: currentUser.displayName,
         allowedRoles: ['teacher', 'admin'],
       },
@@ -297,13 +344,28 @@ export const LibraryPage: React.FC = () => {
     setNewTitle('');
     setNewDesc('');
     setNewFileName('');
+    setSelectedFile(null);
 
     Swal.fire({
       title: 'เพิ่มเอกสารเข้าคลังสำเร็จ!',
-      text: 'เอกสารพร้อมให้ครูและผู้บริหารดาวน์โหลดแล้ว',
+      html: `
+        <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
+          <p>เอกสารพร้อมให้ครูและผู้บริหารดาวน์โหลด และซิงค์ลง Google Drive เรียบร้อยแล้ว</p>
+          <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 font-mono text-[11px] truncate">
+            📁 Google Drive / คลังเอกสารกลาง & แบบฟอร์ม / ${newFileName.trim()}
+          </div>
+        </div>
+      `,
       icon: 'success',
-      confirmButtonColor: '#2563eb'
-    }).then(() => {
+      showCancelButton: true,
+      confirmButtonText: '📂 ดูใน Google Drive',
+      cancelButtonText: 'ตกลง',
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#64748b'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.open(driveFolderUrl, '_blank');
+      }
       window.location.reload();
     });
   };
@@ -961,19 +1023,32 @@ export const LibraryPage: React.FC = () => {
                 />
               </div>
 
-              {role === 'admin' && (
-                <button
-                  onClick={() => {
-                    setIsEditingCategory(false);
-                    setIsAddingCategory(false);
-                    setShowUploadModal(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-semibold shadow-2xs transition-all"
+                  title="เปิดโฟลเดอร์ Google Drive คลังเอกสารส่วนกลาง"
                 >
-                  <UploadCloud className="w-4 h-4" />
-                  เพิ่มแบบฟอร์มเข้าคลัง
-                </button>
-              )}
+                  <FolderOpen className="w-4 h-4 text-blue-600" />
+                  <span>Google Drive กลาง</span>
+                </a>
+
+                {role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setIsEditingCategory(false);
+                      setIsAddingCategory(false);
+                      setShowUploadModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                  >
+                    <UploadCloud className="w-4 h-4" />
+                    เพิ่มแบบฟอร์มเข้าคลัง
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -1359,6 +1434,41 @@ export const LibraryPage: React.FC = () => {
                     </option>
                   )}
                 </select>
+              </div>
+
+              {/* Google Drive Destination Badge */}
+              <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-center gap-2.5 text-xs text-blue-900">
+                <FolderOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                <div>
+                  <p className="font-bold">ซิงค์ลง Google Drive อัตโนมัติ:</p>
+                  <p className="font-mono text-[11px] text-blue-700 truncate">
+                    📁 Google Drive / คลังเอกสารกลาง & แบบฟอร์ม /
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  เลือกไฟล์จากเครื่อง <span className="text-blue-600 font-normal text-xs">(ซิงค์ขึ้น Google Drive อัตโนมัติ)</span>
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setSelectedFile(file);
+                      setNewFileName(file.name);
+                      setNewFileSize(file.size);
+                      if (file.name.toLowerCase().endsWith('.pdf')) setNewFileType('PDF');
+                      else if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) setNewFileType('DOCX');
+                      else if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) setNewFileType('XLSX');
+                      if (!newTitle.trim()) {
+                        setNewTitle(file.name.replace(/\.[^/.]+$/, ''));
+                      }
+                    }
+                  }}
+                  className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-200 rounded-xl p-2 cursor-pointer"
+                />
               </div>
 
               <div>
