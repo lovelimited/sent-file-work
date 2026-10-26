@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "send-file-51069",
     "public": "dist",
     "ignore": [
       "firebase.json",
