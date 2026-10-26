@@ -11,11 +11,9 @@ import {
   Shield,
   GraduationCap,
   PanelLeftClose,
-  PanelLeftOpen,
-  Repeat
+  PanelLeftOpen
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import Swal from 'sweetalert2';
 
 interface Props {
   onToggleMobileSidebar: () => void;
@@ -30,24 +28,11 @@ export const Navbar: React.FC<Props> = ({
   onToggleCollapse,
   isCollapsed
 }) => {
-  const { currentUser, role, logout, switchRole } = useAuth();
+  const { currentUser, role, logout } = useAuth();
   const settings = getSettings();
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-
-  const handleToggleRole = () => {
-    const nextRole = role === 'admin' ? 'teacher' : 'admin';
-    switchRole(nextRole);
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000,
-      icon: 'success',
-      title: nextRole === 'admin' ? 'สลับเป็น: แอดมินและฝ่ายตรวจ (Admin)' : 'สลับเป็น: คุณครูผู้ส่งงาน (Teacher)'
-    });
-  };
 
   const notifications = currentUser ? getNotifications(currentUser.uid) : [];
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -113,20 +98,15 @@ export const Navbar: React.FC<Props> = ({
         {/* Center / Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Authenticated User Role Badge with 1-Click Role Switcher */}
-          <button 
-            type="button"
-            onClick={handleToggleRole}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer ${currentRoleInfo.color}`}
-            title="คลิกเพื่อสลับบทบาทระหว่าง แอดมิน (Admin) ↔ คุณครู (Teacher)"
+          {/* Authenticated User Role Badge (Static) */}
+          <div 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border shadow-2xs select-none ${currentRoleInfo.color}`}
+            title={`สถานะสิทธิ์: ${currentRoleInfo.label}`}
           >
             <RoleIcon className="w-3.5 h-3.5" />
             <span className="hidden md:inline">{currentRoleInfo.label}</span>
             <span className="md:hidden capitalize">{role === 'admin' ? 'ฝ่ายตรวจ (Admin)' : 'คุณครู (Teacher)'}</span>
-            <span className="text-[10px] font-normal opacity-80 bg-white/70 px-1.5 py-0.2 rounded border border-slate-200/60 hidden sm:inline-flex items-center gap-0.5 ml-1">
-              <Repeat className="w-2.5 h-2.5" /> สลับบทบาท
-            </span>
-          </button>
+          </div>
 
           {/* Notifications Bell */}
           <div className="relative">
@@ -230,19 +210,6 @@ export const Navbar: React.FC<Props> = ({
                   <UserIcon className="w-3.5 h-3.5 text-slate-400" />
                   จัดการโปรไฟล์ส่วนตัว
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleToggleRole}
-                  className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <Repeat className="w-3.5 h-3.5 text-blue-600" />
-                    สลับบทบาทการใช้งาน
-                  </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                    {role === 'admin' ? 'เป็น คุณครู' : 'เป็น แอดมิน'}
-                  </span>
-                </button>
                 <button
                   onClick={logout}
                   className="w-full text-left px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-50"
