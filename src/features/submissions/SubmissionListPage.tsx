@@ -301,15 +301,17 @@ export const SubmissionListPage: React.FC = () => {
             </Link>
           )}
 
-          <button
-            onClick={handleSyncSheets}
-            disabled={isSyncingSheets}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all disabled:opacity-50"
-            title="ซิงค์ข้อมูลไปยัง Google Sheets รายงานแบบเรียลไทม์"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingSheets ? 'animate-spin' : ''}`} />
-            {isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ Google Sheets'}
-          </button>
+          {role === 'admin' && (
+            <button
+              onClick={handleSyncSheets}
+              disabled={isSyncingSheets}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all disabled:opacity-50"
+              title="ซิงค์ข้อมูลไปยัง Google Sheets รายงานแบบเรียลไทม์ (เฉพาะแอดมิน)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+              {isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ Google Sheets'}
+            </button>
+          )}
         </div>
       </div>
 

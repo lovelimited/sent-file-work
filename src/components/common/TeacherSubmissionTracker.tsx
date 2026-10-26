@@ -233,36 +233,41 @@ export const TeacherSubmissionTracker: React.FC = () => {
           <div className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs">
             รวม {overallPercentage}%
           </div>
-          <a
-            href="https://docs.google.com/spreadsheets/d/1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            title="เปิดดูตาราง Dashboard บน Google Sheets"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Google Sheets</span>
-          </a>
+          {/* Admin-only Operations: Google Sheets, Live Sync, and CSV Export */}
+          {role === 'admin' && (
+            <>
+              <a
+                href="https://docs.google.com/spreadsheets/d/1N5t1SP33BkvUrc00lrjEvnRbfi1cf1JuesNJezVyZqU"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="เปิดดูตาราง Dashboard บน Google Sheets (เฉพาะแอดมิน)"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Google Sheets</span>
+              </a>
 
-          <button
-            onClick={handleManualSyncSheets}
-            disabled={isSyncingSheets}
-            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="กดสั่งซิงค์ข้อมูลตาราง Dashboard ลง Google Sheets ทันที"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin text-blue-600' : 'text-slate-600'}`} />
-            <span>{isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ทันที'}</span>
-          </button>
+              <button
+                onClick={handleManualSyncSheets}
+                disabled={isSyncingSheets}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                title="กดสั่งซิงค์ข้อมูลตาราง Dashboard ลง Google Sheets ทันที (เฉพาะแอดมิน)"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin text-blue-600' : 'text-slate-600'}`} />
+                <span>{isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ทันที'}</span>
+              </button>
 
-          <button
-            onClick={handleExportDashboardCSV}
-            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="ส่งออกตาราง Dashboard เมทริกซ์ เป็นไฟล์ CSV (รองรับภาษาไทย 100%)"
-          >
-            <Download className="w-3.5 h-3.5 text-blue-600" />
-            <span>ส่งออก Dashboard (CSV)</span>
-          </button>
+              <button
+                onClick={handleExportDashboardCSV}
+                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="ส่งออกตาราง Dashboard เมทริกซ์ เป็นไฟล์ CSV (เฉพาะแอดมิน)"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-600" />
+                <span>ส่งออก Dashboard (CSV)</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
