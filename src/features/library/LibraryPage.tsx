@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   getLibraryCategories, 
+  updateLibraryCategoryName,
+  addLibraryCategory,
+  deleteLibraryCategory,
   getLibraryFiles, 
   addLibraryFile, 
   deleteLibraryFile,
@@ -28,16 +31,34 @@ import {
   Users,
   Eye,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Edit3,
+  Plus,
+  Check
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 export const LibraryPage: React.FC = () => {
   const { currentUser, role } = useAuth();
-  const categories = getLibraryCategories();
-  const files = getLibraryFiles();
-  const topicFolders = getSubmissionFilesGroupedByTopic();
+  const [categories, setCategories] = useState(getLibraryCategories());
+  const [files, setFiles] = useState(getLibraryFiles());
+  const [topicFolders, setTopicFolders] = useState(getSubmissionFilesGroupedByTopic());
+
+  // Listen to real-time sync / data change events
+  useEffect(() => {
+    const handleDataChanged = () => {
+      setCategories(getLibraryCategories());
+      setFiles(getLibraryFiles());
+      setTopicFolders(getSubmissionFilesGroupedByTopic());
+    };
+    window.addEventListener('sent_work_data_changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
+    return () => {
+      window.removeEventListener('sent_work_data_changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+    };
+  }, []);
 
   // Main Page Tab: 'topic_folders' (โฟลเดอร์ผลงานตามชื่องาน) or 'templates' (คลังแบบฟอร์มกลาง)
   const [activeMainTab, setActiveMainTab] = useState<'topic_folders' | 'templates'>('topic_folders');
@@ -64,6 +85,63 @@ export const LibraryPage: React.FC = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileSize, setNewFileSize] = useState(2500000);
   const [newFileType, setNewFileType] = useState('PDF');
+
+  // Inline Category Management State
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Keep newCatId valid
+  useEffect(() => {
+    if (!newCatId && categories.length > 0) {
+      setNewCatId(categories[0].id);
+    }
+  }, [categories, newCatId]);
+
+  // Handler to rename category
+  const handleSaveRenameCategory = () => {
+    if (!editingCategoryName.trim()) {
+      Swal.fire('กรุณาระบุชื่อหมวดหมู่', '', 'warning');
+      return;
+    }
+    const targetCatId = newCatId || categories[0]?.id;
+    if (!targetCatId) return;
+
+    const updated = updateLibraryCategoryName(targetCatId, editingCategoryName.trim(), currentUser || undefined);
+    setCategories([...updated]);
+    setIsEditingCategory(false);
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'เปลี่ยนชื่อหมวดหมู่เรียบร้อยแล้ว',
+      showConfirmButton: false,
+      timer: 2000
+    });
+  };
+
+  // Handler to add new category
+  const handleSaveNewCategory = () => {
+    if (!newCategoryName.trim()) {
+      Swal.fire('กรุณาระบุชื่อหมวดหมู่ใหม่', '', 'warning');
+      return;
+    }
+    const created = addLibraryCategory(newCategoryName.trim(), '', currentUser || undefined);
+    const updated = getLibraryCategories();
+    setCategories([...updated]);
+    setNewCatId(created.id);
+    setIsAddingCategory(false);
+    setNewCategoryName('');
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `สร้างหมวดหมู่ "${created.name}" เรียบร้อยแล้ว`,
+      showConfirmButton: false,
+      timer: 2000
+    });
+  };
 
   // Filter accessible categories based on user role
   const accessibleCategories = categories.filter(c => c.allowedRoles.includes(role));
@@ -820,8 +898,12 @@ export const LibraryPage: React.FC = () => {
 
               {role === 'admin' && (
                 <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all"
+                  onClick={() => {
+                    setIsEditingCategory(false);
+                    setIsAddingCategory(false);
+                    setShowUploadModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                 >
                   <UploadCloud className="w-4 h-4" />
                   เพิ่มแบบฟอร์มเข้าคลัง
@@ -854,6 +936,87 @@ export const LibraryPage: React.FC = () => {
                   {cat.name}
                 </button>
               ))}
+
+              {role === 'admin' && selectedCatId !== 'all' && (
+                <button
+                  onClick={() => {
+                    const currentCat = accessibleCategories.find(c => c.id === selectedCatId);
+                    if (!currentCat) return;
+                    Swal.fire({
+                      title: 'เปลี่ยนชื่อหมวดหมู่เอกสาร',
+                      input: 'text',
+                      inputLabel: `ชื่อหมวดหมู่เดิม: "${currentCat.name}"`,
+                      inputValue: currentCat.name,
+                      showCancelButton: true,
+                      confirmButtonText: 'บันทึกชื่อใหม่',
+                      cancelButtonText: 'ยกเลิก',
+                      confirmButtonColor: '#2563eb',
+                      inputValidator: (value) => {
+                        if (!value || !value.trim()) {
+                          return 'กรุณากรอกชื่อหมวดหมู่';
+                        }
+                      }
+                    }).then((result) => {
+                      if (result.isConfirmed && result.value) {
+                        const updated = updateLibraryCategoryName(selectedCatId, result.value.trim(), currentUser || undefined);
+                        setCategories([...updated]);
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'เปลี่ยนชื่อสำเร็จ!',
+                          text: `หมวดหมู่ถูกเปลี่ยนชื่อเป็น "${result.value.trim()}" เรียบร้อยแล้ว`,
+                          timer: 2000,
+                          showConfirmButton: false,
+                        });
+                      }
+                    });
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                  title="เปลี่ยนชื่อหมวดหมู่นี้"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>เปลี่ยนชื่อหมวดหมู่นี้</span>
+                </button>
+              )}
+
+              {role === 'admin' && (
+                <button
+                  onClick={() => {
+                    Swal.fire({
+                      title: 'เพิ่มหมวดหมู่เอกสารใหม่',
+                      input: 'text',
+                      inputPlaceholder: 'เช่น เอกสารการเงินและพัสดุ...',
+                      showCancelButton: true,
+                      confirmButtonText: 'สร้างหมวดหมู่',
+                      cancelButtonText: 'ยกเลิก',
+                      confirmButtonColor: '#059669',
+                      inputValidator: (value) => {
+                        if (!value || !value.trim()) {
+                          return 'กรุณากรอกชื่อหมวดหมู่';
+                        }
+                      }
+                    }).then((result) => {
+                      if (result.isConfirmed && result.value) {
+                        const created = addLibraryCategory(result.value.trim(), '', currentUser || undefined);
+                        const updated = getLibraryCategories();
+                        setCategories([...updated]);
+                        setSelectedCatId(created.id);
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'สร้างหมวดหมู่สำเร็จ!',
+                          text: `เพิ่มหมวดหมู่ "${created.name}" เรียบร้อยแล้ว`,
+                          timer: 2000,
+                          showConfirmButton: false,
+                        });
+                      }
+                    });
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                  title="สร้างหมวดหมู่เอกสารใหม่"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่มหมวดหมู่</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -939,16 +1102,157 @@ export const LibraryPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleUploadSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">หมวดหมู่เอกสาร</label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-700">หมวดหมู่เอกสาร</label>
+                  {role === 'admin' && (
+                    <div className="flex items-center gap-2">
+                      {!isEditingCategory && !isAddingCategory && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = accessibleCategories.find(c => c.id === newCatId) || accessibleCategories[0];
+                              setEditingCategoryName(curr?.name || '');
+                              setIsEditingCategory(true);
+                              setIsAddingCategory(false);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            title="แก้ไขเปลี่ยนชื่อหมวดหมู่ที่เลือก"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            เปลี่ยนชื่อหมวดหมู่นี้
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCategoryName('');
+                              setIsAddingCategory(true);
+                              setIsEditingCategory(false);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer"
+                            title="สร้างหมวดหมู่เอกสารใหม่"
+                          >
+                            <Plus className="w-3 h-3" />
+                            เพิ่มหมวดหมู่ใหม่
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Inline Rename Box */}
+                {isEditingCategory && (
+                  <div className="p-3 rounded-2xl bg-blue-50/90 border border-blue-200 space-y-2 animate-fade-in shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-blue-900 text-[11px] flex items-center gap-1">
+                        <Edit3 className="w-3 h-3 text-blue-600" />
+                        เปลี่ยนชื่อหมวดหมู่เอกสาร
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCategory(false)}
+                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingCategoryName}
+                        onChange={(e) => setEditingCategoryName(e.target.value)}
+                        placeholder="ระบุชื่อหมวดหมู่ใหม่..."
+                        className="flex-1 rounded-xl border border-blue-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveRenameCategory}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-xs"
+                      >
+                        บันทึกชื่อใหม่
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCategory(false)}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition-colors shrink-0 cursor-pointer"
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Inline Add New Category Box */}
+                {isAddingCategory && (
+                  <div className="p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 space-y-2 animate-fade-in shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-900 text-[11px] flex items-center gap-1">
+                        <Plus className="w-3 h-3 text-emerald-600" />
+                        เพิ่มหมวดหมู่เอกสารใหม่
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(false)}
+                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="พิมพ์ชื่อหมวดหมู่ใหม่ เช่น เอกสารการเงินและพัสดุ..."
+                        className="flex-1 rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveNewCategory}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-xs"
+                      >
+                        สร้างหมวดหมู่
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(false)}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition-colors shrink-0 cursor-pointer"
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Category Dropdown */}
                 <select
                   value={newCatId}
-                  onChange={(e) => setNewCatId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2 text-slate-800"
+                  onChange={(e) => {
+                    if (e.target.value === '__add_new__') {
+                      setNewCategoryName('');
+                      setIsAddingCategory(true);
+                      setIsEditingCategory(false);
+                    } else {
+                      setNewCatId(e.target.value);
+                      setIsEditingCategory(false);
+                      setIsAddingCategory(false);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-200 p-2 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   {accessibleCategories.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
+                  {role === 'admin' && (
+                    <option value="__add_new__" className="text-emerald-700 font-bold">
+                      ➕ เพิ่มหมวดหมู่ใหม่...
+                    </option>
+                  )}
                 </select>
               </div>
 

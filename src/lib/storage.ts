@@ -778,6 +778,62 @@ export function getLibraryCategories(): LibraryCategory[] {
   return getItem<LibraryCategory[]>(STORAGE_KEYS.LIBRARY_CATS, initialLibraryCategories);
 }
 
+export function saveLibraryCategories(categories: LibraryCategory[]): void {
+  setItem(STORAGE_KEYS.LIBRARY_CATS, categories);
+  window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'UPDATE_LIBRARY_CATEGORIES' } }));
+}
+
+export function updateLibraryCategoryName(id: string, newName: string, actor?: User): LibraryCategory[] {
+  const cats = getLibraryCategories();
+  const cat = cats.find(c => c.id === id);
+  if (cat) {
+    cat.name = newName.trim();
+    setItem(STORAGE_KEYS.LIBRARY_CATS, cats);
+    if (actor) {
+      logActivity('UPDATE_LIBRARY_CATEGORY', 'LibraryCategory', id, actor, { newName: cat.name });
+    }
+    try {
+      setDoc(doc(db, 'libraryCategories', id), cat, { merge: true }).catch(() => {});
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'UPDATE_LIBRARY_CATEGORY', categoryId: id } }));
+  }
+  return cats;
+}
+
+export function addLibraryCategory(name: string, description: string = '', actor?: User): LibraryCategory {
+  const cats = getLibraryCategories();
+  const newCat: LibraryCategory = {
+    id: `cat-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    name: name.trim(),
+    description: description.trim(),
+    allowedRoles: ['teacher', 'admin']
+  };
+  cats.push(newCat);
+  setItem(STORAGE_KEYS.LIBRARY_CATS, cats);
+  if (actor) {
+    logActivity('CREATE_LIBRARY_CATEGORY', 'LibraryCategory', newCat.id, actor, { name: newCat.name });
+  }
+  try {
+    setDoc(doc(db, 'libraryCategories', newCat.id), newCat, { merge: true }).catch(() => {});
+  } catch (e) {}
+  window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CREATE_LIBRARY_CATEGORY', categoryId: newCat.id } }));
+  return newCat;
+}
+
+export function deleteLibraryCategory(id: string, actor?: User): boolean {
+  let cats = getLibraryCategories();
+  cats = cats.filter(c => c.id !== id);
+  setItem(STORAGE_KEYS.LIBRARY_CATS, cats);
+  if (actor) {
+    logActivity('DELETE_LIBRARY_CATEGORY', 'LibraryCategory', id, actor);
+  }
+  try {
+    deleteDoc(doc(db, 'libraryCategories', id)).catch(() => {});
+  } catch (e) {}
+  window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'DELETE_LIBRARY_CATEGORY', categoryId: id } }));
+  return true;
+}
+
 export function getLibraryFiles(): LibraryFile[] {
   return getItem<LibraryFile[]>(STORAGE_KEYS.LIBRARY_FILES, initialLibraryFiles);
 }
@@ -792,7 +848,11 @@ export function addLibraryFile(file: Omit<LibraryFile, 'id' | 'uploadedAt' | 'do
   };
   list.unshift(newFile);
   setItem(STORAGE_KEYS.LIBRARY_FILES, list);
+  try {
+    setDoc(doc(db, 'libraryFiles', newFile.id), newFile, { merge: true }).catch(() => {});
+  } catch (e) {}
   logActivity('UPLOAD_LIBRARY_FILE', 'LibraryFile', newFile.id, actor, { title: newFile.title });
+  window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'UPLOAD_LIBRARY_FILE', fileId: newFile.id } }));
   return newFile;
 }
 
@@ -800,7 +860,11 @@ export function deleteLibraryFile(id: string, actor: User): boolean {
   let list = getLibraryFiles();
   list = list.filter(f => f.id !== id);
   setItem(STORAGE_KEYS.LIBRARY_FILES, list);
+  try {
+    deleteDoc(doc(db, 'libraryFiles', id)).catch(() => {});
+  } catch (e) {}
   logActivity('DELETE_LIBRARY_FILE', 'LibraryFile', id, actor);
+  window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'DELETE_LIBRARY_FILE', fileId: id } }));
   return true;
 }
 

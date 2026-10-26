@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole, SubmissionTopic, Submission } from '../types';
+import { User, UserRole, SubmissionTopic, Submission, LibraryCategory } from '../types';
 import { 
   getStoredCurrentUser, 
   setStoredCurrentUser, 
@@ -10,6 +10,7 @@ import {
   createUser,
   getSubmissionTopics,
   getSubmissions,
+  getLibraryCategories,
   logActivity 
 } from '../lib/storage';
 import { auth, googleProvider, db } from '../lib/firebase';
@@ -75,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let unsubscribeUsers = () => {};
     let unsubscribeTopics = () => {};
     let unsubscribeSubmissions = () => {};
+    let unsubscribeLibraryCats = () => {};
 
     try {
       // 1. Sync Users
@@ -184,6 +186,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firestore submissions sync notice:', err.message);
       });
 
+      // 4. Sync Library Categories (หมวดหมู่เอกสารคลังกลาง)
+      unsubscribeLibraryCats = onSnapshot(collection(db, 'libraryCategories'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudCats: LibraryCategory[] = [];
+          snapshot.forEach(docSnap => {
+            const cData = docSnap.data() as LibraryCategory;
+            if (cData && cData.id) {
+              cloudCats.push(cData);
+            }
+          });
+          if (cloudCats.length > 0) {
+            localStorage.setItem('sent_work_library_cats_v5', JSON.stringify(cloudCats));
+            window.dispatchEvent(new CustomEvent('sent_work_data_changed', { detail: { action: 'CLOUD_LIBRARY_CATS_SYNCED' } }));
+          }
+        } else {
+          const localCats = getLibraryCategories();
+          if (localCats.length > 0) {
+            localCats.forEach(c => {
+              setDoc(doc(db, 'libraryCategories', c.id), c, { merge: true }).catch(() => {});
+            });
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore library categories sync notice:', err.message);
+      });
+
     } catch (e) {
       console.warn('Firestore onSnapshot init:', e);
     }
@@ -192,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribeUsers();
       unsubscribeTopics();
       unsubscribeSubmissions();
+      unsubscribeLibraryCats();
     };
   }, [currentUser]);
 
