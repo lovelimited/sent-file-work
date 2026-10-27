@@ -1122,6 +1122,88 @@ export const SubmissionDetailPage: React.FC = () => {
                 })}
               </div>
 
+              {/* Unassigned / Additional Files in this version (if any files were attached without specific subtask) */}
+              {(() => {
+                const unassignedFiles = activeVersion?.files?.filter(f => !f.subTaskId || !topicSubTasks.some(st => st.id === f.subTaskId)) || [];
+                if (unassignedFiles.length === 0) return null;
+                return (
+                  <div className="p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 space-y-2 mt-3">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      ไฟล์แนบเพิ่มเติมทั่วไป ({unassignedFiles.length} ไฟล์):
+                    </span>
+                    <div className="space-y-1.5">
+                      {unassignedFiles.map(file => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                            <span className="font-medium text-slate-800 truncate" title={file.fileName}>
+                              {file.fileName}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              ({(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setViewerFile(file)}
+                              className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              title="เปิดดูไฟล์ในระบบ"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>เปิดดูไฟล์</span>
+                            </button>
+                            <a
+                              href={file.driveUrl || 'https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all inline-flex items-center gap-1 shadow-2xs"
+                              title="เปิดดูไฟล์ใน Google Drive"
+                            >
+                              <FolderOpen className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Drive</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleFileDownload(file)}
+                              className="text-slate-600 hover:text-blue-700 p-1.5 font-semibold text-xs inline-flex items-center gap-1 border border-slate-200 hover:border-blue-300 rounded-xl bg-slate-50 hover:bg-white transition-colors cursor-pointer"
+                              title="ดาวน์โหลดไฟล์นี้"
+                            >
+                              <Download className="w-3.5 h-3.5 text-slate-500" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* External Links (if any) */}
+              {activeVersion?.externalLinks && activeVersion.externalLinks.length > 0 && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5 mt-3">
+                  <span className="font-bold text-slate-700 block">🔗 ลิงก์ผลงานภายนอก:</span>
+                  <div className="space-y-1">
+                    {activeVersion.externalLinks.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                      >
+                        <span className="truncate">{link}</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-2 text-slate-400 flex-shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Admin Review Workspace & Single Definitive Save Button */}
               {isAdmin && (
                 <div className="pt-4 mt-2 border-t border-purple-100 space-y-4">
@@ -1293,135 +1375,137 @@ export const SubmissionDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Attached Files Card (All files in this version) */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
-              <span>ไฟล์เอกสารและหลักฐานทั้งหมดในเวอร์ชัน {selectedVersionNum}</span>
-              <span className="text-xs font-normal text-slate-400">
-                {activeVersion?.files?.length || 0} ไฟล์แนบ
-              </span>
-            </h3>
-
-            {/* Topic Folder Destination Notice */}
-            <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200/80 flex items-center gap-2.5 text-xs text-blue-900">
-              <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <span className="font-semibold block text-[11px] text-blue-900">
-                  โฟลเดอร์จัดเก็บผลงานตามชื่องาน (Google Drive):
+          {/* Attached Files Card (Only display when topic has NO sub-tasks, avoiding duplicate cards) */}
+          {topicSubTasks.length === 0 && (
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
+                <span>ไฟล์เอกสารและหลักฐานทั้งหมดในเวอร์ชัน {selectedVersionNum}</span>
+                <span className="text-xs font-normal text-slate-400">
+                  {activeVersion?.files?.length || 0} ไฟล์แนบ
                 </span>
-                <span className="font-mono text-[11px] text-blue-700 font-bold truncate block">
-                  📁 Google Drive / {submission?.topicTitle || 'ผลงานครู'} /
+              </h3>
+
+              {/* Topic Folder Destination Notice */}
+              <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200/80 flex items-center gap-2.5 text-xs text-blue-900">
+                <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <span className="font-semibold block text-[11px] text-blue-900">
+                    โฟลเดอร์จัดเก็บผลงานตามชื่องาน (Google Drive):
+                  </span>
+                  <span className="font-mono text-[11px] text-blue-700 font-bold truncate block">
+                    📁 Google Drive / {submission?.topicTitle || 'ผลงานครู'} /
+                  </span>
+                </div>
+                <span className="text-[10px] text-blue-700 font-semibold bg-white px-2 py-0.5 rounded-full border border-blue-200 shadow-2xs">
+                  จัดเข้าโฟลเดอร์เรียบร้อย
                 </span>
               </div>
-              <span className="text-[10px] text-blue-700 font-semibold bg-white px-2 py-0.5 rounded-full border border-blue-200 shadow-2xs">
-                จัดเข้าโฟลเดอร์เรียบร้อย
-              </span>
-            </div>
 
-            {/* CHECK FILE ACCESS: Admin or Owner Teacher only */}
-            {canAccessFiles ? (
-              activeVersion?.files && activeVersion.files.length > 0 ? (
-                <div className="space-y-2">
-                  {activeVersion.files.map((file) => (
-                    <div
-                      key={file.id}
-                      className="p-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold text-xs uppercase">
-                          {file.fileName.split('.').pop() || 'FILE'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 truncate">{file.fileName}</p>
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400 flex-wrap">
-                            <span>{(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB</span>
-                            <span>•</span>
-                            <span>แนบเมื่อ {new Date(file.uploadedAt).toLocaleDateString('th-TH')}</span>
-                            {file.subTaskTitle && (
-                              <>
-                                <span>•</span>
-                                <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 truncate">
-                                  งานย่อย: {file.subTaskTitle}
-                                </span>
-                              </>
-                            )}
+              {/* CHECK FILE ACCESS: Admin or Owner Teacher only */}
+              {canAccessFiles ? (
+                activeVersion?.files && activeVersion.files.length > 0 ? (
+                  <div className="space-y-2">
+                    {activeVersion.files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="p-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold text-xs uppercase">
+                            {file.fileName.split('.').pop() || 'FILE'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800 truncate">{file.fileName}</p>
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400 flex-wrap">
+                              <span>{(file.fileSizeBytes / 1024 / 1024).toFixed(2)} MB</span>
+                              <span>•</span>
+                              <span>แนบเมื่อ {new Date(file.uploadedAt).toLocaleDateString('th-TH')}</span>
+                              {file.subTaskTitle && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 truncate">
+                                    งานย่อย: {file.subTaskTitle}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Direct In-App File Viewer */}
-                        <button
-                          type="button"
-                          onClick={() => setViewerFile(file)}
-                          className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs group"
-                          title="เปิดดูเนื้อหาเอกสารในระบบ ไม่ต้องดาวน์โหลด"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-blue-600 group-hover:text-white" />
-                          <span>เปิดดูไฟล์</span>
-                        </button>
-                        {/* Open in Google Drive */}
-                        <a
-                          href={file.driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all inline-flex items-center gap-1 shadow-2xs"
-                          title="เปิดดูไฟล์ใน Google Drive"
-                        >
-                          <FolderOpen className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Drive</span>
-                        </a>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {/* Direct In-App File Viewer */}
+                          <button
+                            type="button"
+                            onClick={() => setViewerFile(file)}
+                            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-2xs group"
+                            title="เปิดดูเนื้อหาเอกสารในระบบ ไม่ต้องดาวน์โหลด"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-blue-600 group-hover:text-white" />
+                            <span>เปิดดูไฟล์</span>
+                          </button>
+                          {/* Open in Google Drive */}
+                          <a
+                            href={file.driveUrl || `https://drive.google.com/drive/folders/1VNaQSal6_ef-3_muZQd2vRH6Zb5oBAMd`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-semibold transition-all inline-flex items-center gap-1 shadow-2xs"
+                            title="เปิดดูไฟล์ใน Google Drive"
+                          >
+                            <FolderOpen className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Drive</span>
+                          </a>
 
-                        {/* Real Download Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleFileDownload(file, file.subTaskTitle)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer text-xs"
-                          title="ดาวน์โหลดสำเนาไฟล์นี้ลงในเครื่อง"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>ดาวน์โหลด</span>
-                        </button>
+                          {/* Real Download Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleFileDownload(file, file.subTaskTitle)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer text-xs"
+                            title="ดาวน์โหลดสำเนาไฟล์นี้ลงในเครื่อง"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>ดาวน์โหลด</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    ไม่มีไฟล์แนบในเวอร์ชันนี้
+                  </div>
+                )
               ) : (
-                <div className="p-8 text-center text-slate-400 text-xs">
-                  ไม่มีไฟล์แนบในเวอร์ชันนี้
+                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-xs space-y-2 text-center">
+                  <Lock className="w-6 h-6 text-amber-600 mx-auto" />
+                  <p className="font-bold">จำกัดสิทธิ์การเข้าถึงไฟล์เอกสาร</p>
+                  <p className="text-[11px] text-amber-700 max-w-sm mx-auto">
+                    ไฟล์เอกสารและผลงานของครูท่านนี้เปิดดูได้เฉพาะฝ่ายแอดมิน และครูผู้เป็นเจ้าของผลงานเท่านั้น
+                  </p>
                 </div>
-              )
-            ) : (
-              <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-xs space-y-2 text-center">
-                <Lock className="w-6 h-6 text-amber-600 mx-auto" />
-                <p className="font-bold">จำกัดสิทธิ์การเข้าถึงไฟล์เอกสาร</p>
-                <p className="text-[11px] text-amber-700 max-w-sm mx-auto">
-                  ไฟล์เอกสารและผลงานของครูท่านนี้เปิดดูได้เฉพาะฝ่ายแอดมิน และครูผู้เป็นเจ้าของผลงานเท่านั้น
-                </p>
-              </div>
-            )}
+              )}
 
-            {/* External Links */}
-            {activeVersion?.externalLinks && activeVersion.externalLinks.length > 0 && (
-              <div className="pt-4 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-700 block mb-2">ลิงก์ผลงานภายนอก:</span>
-                <div className="space-y-1.5">
-                  {activeVersion.externalLinks.map((link, idx) => (
-                    <a
-                      key={idx}
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-200 text-blue-600 transition-colors text-xs"
-                    >
-                      <span className="truncate">{link}</span>
-                      <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 ml-2 text-slate-400" />
-                    </a>
-                  ))}
+              {/* External Links */}
+              {activeVersion?.externalLinks && activeVersion.externalLinks.length > 0 && (
+                <div className="pt-4 border-t border-slate-100">
+                  <span className="text-xs font-semibold text-slate-700 block mb-2">ลิงก์ผลงานภายนอก:</span>
+                  <div className="space-y-1.5">
+                    {activeVersion.externalLinks.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-200 text-blue-600 transition-colors text-xs"
+                      >
+                        <span className="truncate">{link}</span>
+                        <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 ml-2 text-slate-400" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Teacher Submission Note */}
           {activeVersion?.note && (
