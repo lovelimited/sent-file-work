@@ -191,7 +191,7 @@ export const SubmissionDetailPage: React.FC = () => {
   }
 
   const canReview = isAdmin;
-  const canResubmit = isOwnerTeacher && (submission.status === 'revision_required' || submission.status === 'rejected');
+  const canResubmit = isOwnerTeacher;
 
   // Auto-initialize review state based on current version and review
   useEffect(() => {
@@ -601,6 +601,11 @@ export const SubmissionDetailPage: React.FC = () => {
     // Auto-sync update to Google Sheets
     triggerAutoSyncToGoogleSheets('TEACHER_RESUBMIT');
 
+    const updatedSub = getSubmissionById(submission.id);
+    const newVer = updatedSub?.currentVersionNumber || (submission.currentVersionNumber + 1);
+    setSelectedVersionNum(newVer);
+    reloadSubmissionData();
+
     setShowResubmitModal(false);
     confetti({ particleCount: 70, spread: 60 });
 
@@ -608,7 +613,7 @@ export const SubmissionDetailPage: React.FC = () => {
       title: 'ส่งงานเวอร์ชันใหม่สำเร็จ!',
       html: `
         <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
-          <p>ส่งเวอร์ชัน ${submission.currentVersionNumber + 1} เข้าระบบและบันทึกลง Google Drive เรียบร้อยแล้ว</p>
+          <p>ส่งเวอร์ชัน ${newVer} เข้าระบบและบันทึกลง Google Drive เรียบร้อยแล้ว</p>
           <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 font-mono text-[11px] truncate">
             📁 Google Drive / ${submission.topicTitle || 'ผลงานครู'} / ${currentUser.displayName} /
           </div>
@@ -1508,15 +1513,23 @@ export const SubmissionDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Quick action for teacher when revision required */}
-            {!isAdmin && (submission.status === 'revision_required' || activeVersionReview?.decision === 'revision_required') && (
+            {/* Quick action for teacher when revision required or updating */}
+            {!isAdmin && isOwnerTeacher && (
               <button
                 type="button"
                 onClick={() => setShowResubmitModal(true)}
-                className="w-full mt-2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className={`w-full mt-2 py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  submission.status === 'revision_required' || activeVersionReview?.decision === 'revision_required'
+                    ? 'bg-amber-500 hover:bg-amber-600'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 <Upload className="w-4 h-4" />
-                <span>ส่งงานเวอร์ชันใหม่ (v{submission.currentVersionNumber + 1})</span>
+                <span>
+                  {submission.status === 'revision_required' || activeVersionReview?.decision === 'revision_required'
+                    ? `⚠️ ส่งงานเวอร์ชันใหม่ตามคำแนะนำ (v${submission.currentVersionNumber + 1})`
+                    : `🚀 ส่งงานเวอร์ชันใหม่เพิ่มเติม (v${submission.currentVersionNumber + 1})`}
+                </span>
               </button>
             )}
           </div>

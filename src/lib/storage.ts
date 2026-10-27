@@ -346,8 +346,121 @@ export function deleteDemoTeachers(actor?: User): { count: number; names: string
   };
 }
 
+let isConsolidating = false;
+
+export function consolidateDuplicateSubmissions(): void {
+  if (isConsolidating) return;
+  isConsolidating = true;
+  try {
+    const rawSubs = getItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, initialSubmissions);
+    if (!rawSubs || rawSubs.length <= 1) return;
+
+    // Check if any teacher (by UID or Email) + topicId has duplicates
+    const counts: Record<string, number> = {};
+    let hasAnyDup = false;
+    for (const s of rawSubs) {
+      const teacherKey = s.teacherEmail?.toLowerCase() || s.teacherUid || 'unknown';
+      const key = `${teacherKey}_${s.topicId || s.topicTitle}`;
+      counts[key] = (counts[key] || 0) + 1;
+      if (counts[key] > 1) {
+        hasAnyDup = true;
+        break;
+      }
+    }
+    if (!hasAnyDup) return;
+
+    const allVersions = getItem<Record<string, SubmissionVersion[]>>(STORAGE_KEYS.VERSIONS, initialVersions);
+    const groups: Record<string, Submission[]> = {};
+    rawSubs.forEach(s => {
+      const teacherKey = s.teacherEmail?.toLowerCase() || s.teacherUid || 'unknown';
+      const key = `${teacherKey}_${s.topicId || s.topicTitle}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(s);
+    });
+
+    const subsToRemove = new Set<string>();
+
+    Object.values(groups).forEach(group => {
+      if (group.length > 1) {
+        group.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+        const primary = group[0];
+        
+        let primaryVersions = allVersions[primary.id] || [];
+        if (primaryVersions.length === 0) {
+          primaryVersions = [{
+            id: `ver-${primary.id}-v1`,
+            submissionId: primary.id,
+            versionNumber: 1,
+            note: 'เอกสารและหลักฐานการส่งผลงาน',
+            submittedAt: primary.submittedAt,
+            statusSnapshot: primary.status,
+            files: [],
+            externalLinks: []
+          }];
+        }
+
+        for (let i = 1; i < group.length; i++) {
+          const dup = group[i];
+          subsToRemove.add(dup.id);
+
+          const dupVersions = allVersions[dup.id] || [];
+          if (dupVersions.length > 0) {
+            [...dupVersions].sort((a, b) => (a.versionNumber || 0) - (b.versionNumber || 0)).forEach(dv => {
+              const nextVerNum = primaryVersions.reduce((max, v) => Math.max(max, v.versionNumber || 0), 0) + 1;
+              primaryVersions.unshift({
+                ...dv,
+                id: `ver-${primary.id}-v${nextVerNum}`,
+                submissionId: primary.id,
+                versionNumber: nextVerNum,
+              });
+            });
+          } else {
+            const nextVerNum = primaryVersions.reduce((max, v) => Math.max(max, v.versionNumber || 0), 0) + 1;
+            primaryVersions.unshift({
+              id: `ver-${primary.id}-v${nextVerNum}`,
+              submissionId: primary.id,
+              versionNumber: nextVerNum,
+              note: 'ส่งงานรอบเพิ่มเติม',
+              submittedAt: dup.submittedAt || new Date().toISOString(),
+              statusSnapshot: dup.status || 'submitted',
+              files: [],
+              externalLinks: []
+            });
+          }
+
+          delete allVersions[dup.id];
+          try {
+            deleteDoc(doc(db, 'submissions', dup.id)).catch(() => {});
+          } catch (e) {}
+        }
+
+        const maxVer = primaryVersions.reduce((max, v) => Math.max(max, v.versionNumber || 0), 1);
+        primary.currentVersionNumber = maxVer;
+        const latestDup = group[group.length - 1];
+        primary.updatedAt = latestDup.updatedAt || latestDup.submittedAt;
+        primary.status = latestDup.status;
+        allVersions[primary.id] = primaryVersions;
+
+        try {
+          setDoc(doc(db, 'submissions', primary.id), primary, { merge: true }).catch(() => {});
+          primaryVersions.forEach(pv => {
+            setDoc(doc(db, 'versions', pv.id), pv, { merge: true }).catch(() => {});
+          });
+        } catch (e) {}
+      }
+    });
+
+    const cleanedSubs = rawSubs.filter(s => !subsToRemove.has(s.id));
+    setItem(STORAGE_KEYS.SUBMISSIONS, cleanedSubs);
+    setItem(STORAGE_KEYS.VERSIONS, allVersions);
+  } finally {
+    isConsolidating = false;
+  }
+}
+
 // Submissions
 export function getSubmissions(): Submission[] {
+  consolidateDuplicateSubmissions();
   return getItem<Submission[]>(STORAGE_KEYS.SUBMISSIONS, initialSubmissions);
 }
 
@@ -406,6 +519,26 @@ export function createSubmission(
   actor: User
 ): Submission {
   const submissions = getSubmissions();
+
+  // CHECK: If teacher already has a submission for this topic, automatically create the NEXT version (v2, v3, v4, v5...)!
+  const existingSub = submissions.find(s => 
+    (s.teacherUid === submissionData.teacherUid || (s.teacherEmail && submissionData.teacherEmail && s.teacherEmail.toLowerCase() === submissionData.teacherEmail.toLowerCase())) && 
+    (s.topicId === submissionData.topicId || (s.topicTitle && s.topicTitle === submissionData.topicTitle))
+  );
+
+  if (existingSub) {
+    const updated = addSubmissionVersion(
+      existingSub.id,
+      initialFiles,
+      note,
+      externalLinks,
+      actor
+    );
+    if (updated) {
+      return updated;
+    }
+  }
+
   const newId = `sub-${Date.now()}`;
   const now = new Date().toISOString();
 
@@ -518,19 +651,34 @@ export function addSubmissionVersion(
   if (subIndex === -1) return null;
 
   const currentSub = submissions[subIndex];
-  const newVersionNumber = currentSub.currentVersionNumber + 1;
+
+  // Load existing versions to guarantee no previous version (including v1) is lost
+  const existingVersions = getVersionsBySubmissionId(submissionId);
+  const maxExistingVersion = existingVersions.reduce((max, v) => Math.max(max, v.versionNumber || 0), 0);
+  const newVersionNumber = Math.max(currentSub.currentVersionNumber || 0, maxExistingVersion) + 1;
   const now = new Date().toISOString();
+
+  // Sub-tasks tracking for this new version
+  const topics = getSubmissionTopics();
+  const topic = topics.find(t => t.id === currentSub.topicId);
+  const topicSubTasks = topic?.subTasks || [];
+  const assignedSubTasks = new Set(files.map(f => f.subTaskId).filter(Boolean));
+  const subTasksCount = topicSubTasks.length > 0 ? {
+    total: topicSubTasks.length,
+    completed: assignedSubTasks.size,
+    passed: 0
+  } : currentSub.subTasksCount;
 
   submissions[subIndex] = {
     ...currentSub,
     status: 'submitted',
     currentVersionNumber: newVersionNumber,
     updatedAt: now,
+    subTasksCount
   };
   setItem(STORAGE_KEYS.SUBMISSIONS, submissions);
 
   const allVersions = getItem<Record<string, SubmissionVersion[]>>(STORAGE_KEYS.VERSIONS, initialVersions);
-  const subVersions = allVersions[submissionId] || [];
   const folderName = currentSub.topicTitle || 'ผลงานครู';
   const folderPath = `Google Drive / ${folderName} /`;
 
@@ -559,8 +707,8 @@ export function addSubmissionVersion(
     externalLinks,
   };
 
-  subVersions.unshift(newVersion);
-  allVersions[submissionId] = subVersions;
+  const updatedVersionsList = [newVersion, ...existingVersions.filter(v => v.versionNumber !== newVersionNumber)];
+  allVersions[submissionId] = updatedVersionsList;
   setItem(STORAGE_KEYS.VERSIONS, allVersions);
 
   // Notify Admins

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   getSubmissionTopics, 
   createSubmission,
+  addSubmissionVersion,
   getSubmissions,
   getSettings
 } from '../../lib/storage';
@@ -93,12 +94,18 @@ export const SubmitWorkPage: React.FC = () => {
   // Auto-generate title & default note when selected topic changes
   useEffect(() => {
     if (selectedTopic) {
-      setTitle(`${selectedTopic.title} - ${currentUser?.displayName || 'ครูผู้สอน'}`);
-      setNote('ส่งเอกสารหลักฐานครบถ้วนตามข้อกำหนด พร้อมรับการตรวจรับรอง');
+      const existing = mySubmissionsByTopic[selectedTopic.id];
+      if (existing) {
+        setTitle(existing.title || `${selectedTopic.title} - ${currentUser?.displayName || 'ครูผู้สอน'}`);
+        setNote(`ส่งผลงานเวอร์ชัน ${existing.currentVersionNumber + 1} ปรับปรุงเอกสารเพิ่มเติม`);
+      } else {
+        setTitle(`${selectedTopic.title} - ${currentUser?.displayName || 'ครูผู้สอน'}`);
+        setNote('ส่งเอกสารหลักฐานครบถ้วนตามข้อกำหนด พร้อมรับการตรวจรับรอง');
+      }
       // Clear attached files when switching topic to avoid mixing files
       setFiles([]);
     }
-  }, [selectedTopicId]);
+  }, [selectedTopicId, mySubmissionsByTopic]);
 
   const getRemainingTime = (dueIso?: string) => {
     if (!dueIso) return null;
@@ -342,24 +349,39 @@ export const SubmitWorkPage: React.FC = () => {
         }
       }
 
-      const newSub = createSubmission(
-        {
-          topicId: selectedTopic.id,
-          topicTitle: selectedTopic.title,
-          teacherUid: currentUser.uid,
-          teacherName: currentUser.displayName,
-          teacherEmail: currentUser.email,
-          teacherDepartment: currentUser.learningAreaName || 'กลุ่มสาระการเรียนรู้ทั่วไป',
-          title: title.trim(),
-        },
-        uploadedFilesList,
-        note,
-        links,
-        currentUser
-      );
+      let newSub: Submission;
+      const isResubmit = !!existingSubmission;
+
+      if (existingSubmission) {
+        // Teacher is submitting again for this topic -> Increment to next version (v2, v3, v4, v5...)!
+        const updated = addSubmissionVersion(
+          existingSubmission.id,
+          uploadedFilesList,
+          note,
+          links,
+          currentUser
+        );
+        newSub = updated || existingSubmission;
+      } else {
+        newSub = createSubmission(
+          {
+            topicId: selectedTopic.id,
+            topicTitle: selectedTopic.title,
+            teacherUid: currentUser.uid,
+            teacherName: currentUser.displayName,
+            teacherEmail: currentUser.email,
+            teacherDepartment: currentUser.learningAreaName || 'กลุ่มสาระการเรียนรู้ทั่วไป',
+            title: title.trim(),
+          },
+          uploadedFilesList,
+          note,
+          links,
+          currentUser
+        );
+      }
 
       // Auto sync immediately to Google Sheets report
-      triggerAutoSyncToGoogleSheets('TEACHER_SUBMIT');
+      triggerAutoSyncToGoogleSheets(isResubmit ? 'TEACHER_RESUBMIT' : 'TEACHER_SUBMIT');
 
       // Celebration effect
       confetti({
@@ -379,13 +401,13 @@ export const SubmitWorkPage: React.FC = () => {
         });
       } else {
         Swal.fire({
-          title: '🎉 ส่งผลงานสำเร็จเรียบร้อย!',
+          title: isResubmit ? `🎉 ส่งผลงานเวอร์ชันใหม่ (v${newSub.currentVersionNumber}) สำเร็จ!` : '🎉 ส่งผลงานสำเร็จเรียบร้อย!',
           html: `
             <div class="text-left text-xs space-y-2 mt-2 text-slate-600">
-              <p>ระบบได้บันทึกผลงานของคุณครูและอัปโหลดเข้าสู่ Google Drive เรียบร้อยแล้ว</p>
+              <p>ระบบได้บันทึกผลงาน${isResubmit ? `เวอร์ชันใหม่ (v${newSub.currentVersionNumber})` : ''} ของคุณครูและอัปโหลดเข้าสู่ Google Drive เรียบร้อยแล้ว</p>
               <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 space-y-1">
                 <p class="font-bold text-xs">ชื่องาน: ${newSub.title}</p>
-                <p class="text-[11px] text-emerald-700">จำนวนไฟล์: ${uploadedFilesList.length} รายการ • เวอร์ชัน: v${newSub.currentVersionNumber}</p>
+                <p class="text-[11px] text-emerald-700">จำนวนไฟล์: ${uploadedFilesList.length} รายการ • <b>เวอร์ชันปัจจุบัน: v${newSub.currentVersionNumber}</b></p>
               </div>
             </div>
           `,
@@ -509,22 +531,27 @@ export const SubmitWorkPage: React.FC = () => {
 
               {/* Status Banner of Selected Topic */}
               {existingSubmission ? (
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5">
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-950 space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-800">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      คุณเคยส่งงานนี้แล้ว (v{existingSubmission.currentVersionNumber})
+                    <span className="text-xs font-bold flex items-center gap-1.5 text-blue-900">
+                      <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      คุณเคยส่งงานนี้แล้ว (เวอร์ชันปัจจุบัน: v{existingSubmission.currentVersionNumber})
                     </span>
                     <Link
                       to={`/submissions/${existingSubmission.id}`}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold underline flex items-center gap-0.5"
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-0.5"
                     >
-                      เปิดดู <ChevronRight className="w-3 h-3" />
+                      เปิดดูประวัติเดิม <ChevronRight className="w-3 h-3" />
                     </Link>
                   </div>
-                  <p className="text-[11px] text-emerald-700 leading-relaxed">
-                    สถานะปัจจุบัน: <b>{existingSubmission.status === 'passed' ? 'อนุมัติผ่านแล้ว' : existingSubmission.status === 'revision_required' ? 'ต้องส่งแก้ไข' : 'รอฝ่ายตรวจประเมิน'}</b> (ส่งใหม่ได้ ระบบจะสร้างเวอร์ชันใหม่ให้อัตโนมัติ)
-                  </p>
+                  <div className="p-2.5 bg-white/80 rounded-xl border border-blue-200/60 text-[11px] text-blue-800 space-y-1">
+                    <p>
+                      ✨ <b>การส่งงานซ้ำครั้งนี้:</b> ระบบจะบันทึกเป็น <b>เวอร์ชันใหม่ (v{existingSubmission.currentVersionNumber + 1})</b> ให้อัตโนมัติ โดยรวมอยู่ในงานเดิมและเก็บประวัติทุกเวอร์ชันไว้ครบถ้วน
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      สถานะก่อนหน้า: {existingSubmission.status === 'passed' ? '✓ ผ่านแล้ว' : existingSubmission.status === 'revision_required' ? '⚠️ ต้องแก้ไข' : '⏳ รอตรวจ'}
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 flex items-center gap-2">
@@ -945,7 +972,13 @@ export const SubmitWorkPage: React.FC = () => {
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{isSubmitting ? 'กำลังส่งข้อมูล...' : '🚀 ยืนยันการส่งงาน'}</span>
+                  <span>
+                    {isSubmitting 
+                      ? 'กำลังส่งข้อมูล...' 
+                      : existingSubmission 
+                        ? `🚀 ส่งงานเวอร์ชันใหม่ (v${existingSubmission.currentVersionNumber + 1})`
+                        : '🚀 ยืนยันการส่งงาน (v1)'}
+                  </span>
                 </button>
               </div>
 
