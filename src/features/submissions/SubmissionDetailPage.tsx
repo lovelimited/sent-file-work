@@ -1207,31 +1207,17 @@ export const SubmissionDetailPage: React.FC = () => {
               {/* Admin Review Workspace & Single Definitive Save Button */}
               {isAdmin && (
                 <div className="pt-4 mt-2 border-t border-purple-100 space-y-4">
-                  {/* Feedback Comments */}
+                  {/* Single Clean Review Comments & Feedback Input */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-800">
-                      ความคิดเห็น / บันทึกการตรวจถึงคุณครู:
+                      ความคิดเห็น / ข้อเสนอแนะการตรวจถึงคุณครู:
                     </label>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={reviewComments}
                       onChange={(e) => setReviewComments(e.target.value)}
-                      placeholder="ระบุข้อความรับรอง หรือระบุภาพรวมการตรวจ..."
+                      placeholder="ระบุข้อความรับรอง หรือข้อเสนอแนะการปรับปรุงแก้ไข..."
                       className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
-                    />
-                  </div>
-
-                  {/* Recommendations */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-800">
-                      ข้อเสนอแนะเพิ่มเติมสำหรับการจัดการเรียนรู้ (ถ้ามี):
-                    </label>
-                    <input
-                      type="text"
-                      value={reviewRecommendations}
-                      onChange={(e) => setReviewRecommendations(e.target.value)}
-                      placeholder="ระบุคำแนะนำพัฒนาเพิ่มเติม..."
-                      className="w-full text-xs rounded-xl border border-slate-200 p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
                     />
                   </div>
 
