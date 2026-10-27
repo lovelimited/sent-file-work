@@ -320,10 +320,16 @@ export const LoginPage: React.FC = () => {
         {/* LEFT PANEL: Identity and Branding                    */}
         {/* ---------------------------------------------------- */}
         <div className="md:w-5/12 bg-gradient-to-br from-sky-50/90 via-indigo-50/70 to-blue-50/80 p-6 sm:p-8 flex flex-col justify-center border-b md:border-b-0 md:border-r border-slate-200/80">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1.5 flex items-center justify-center mb-5">
+          <div 
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white shadow-sm border border-slate-200/90 p-1.5 flex items-center justify-center mb-5 shrink-0"
+            style={{ width: '72px', height: '72px', minWidth: '72px', minHeight: '72px', maxWidth: '72px', maxHeight: '72px' }}
+          >
             <img 
               src="/logo.jpg" 
               alt="School Logo" 
+              width="64"
+              height="64"
+              style={{ width: '100%', height: '100%', maxWidth: '64px', maxHeight: '64px', objectFit: 'contain' }}
               className="w-full h-full object-contain" 
             />
           </div>
